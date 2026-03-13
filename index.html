@@ -545,8 +545,8 @@ function renderSynthesisReport(caseKey) {
         <!-- AI 回饋區 -->
         <div id="ai-feedback-section" class="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl p-6 mb-6">
             <h4 class="text-xl font-bold text-red-600 mb-3 flex items-center">
-                <i data-lucide="bot" class="w-6 h-6 mr-2"></i>
-                AI 個人化學習回饋
+                <i data-lucide="message-circle" class="w-6 h-6 mr-2"></i>
+                學習回饋
             </h4>
             <div id="ai-feedback-content">
                 <button onclick="submitToBackend('${caseKey}')"
@@ -554,7 +554,7 @@ function renderSynthesisReport(caseKey) {
                     <i data-lucide="send" class="w-5 h-5 mr-2"></i>
                     送出學習記錄並獲得 AI 回饋
                 </button>
-                <p class="text-xs text-gray-400 mt-2">送出後將生成個人化回饋，並將你的學習記錄存為 Word 檔。</p>
+                <p class="text-xs text-gray-400 mt-2">送出後將生成學習回饋，並將你的學習記錄存為 Word 檔。</p>
             </div>
         </div>
     `;

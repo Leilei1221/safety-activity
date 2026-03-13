@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>事故現場・安全守護者：風險分析電子報</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { font-family: 'Inter', sans-serif; }
+        body::-webkit-scrollbar { width: 8px; }
+        body::-webkit-scrollbar-thumb { background-color: #fca5a5; border-radius: 4px; }
+        .domino-item { transition: all 0.3s ease; cursor: default; }
+        .stage-1 { background-color: #d1fae5; border-left-color: #10b981; }
+        .stage-2 { background-color: #fffbeb; border-left-color: #f59e0b; }
+        .stage-3 { background-color: #fee2e2; border-left-color: #ef4444; }
+        .lucide { display: inline-block; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .student-reflection-area { resize: none; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<div id="app" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- Header -->
+    <header class="bg-white shadow-lg rounded-xl mb-8 p-4 sm:p-6 flex justify-between items-center sticky top-0 z-10">
+        <h1 class="text-3xl font-extrabold text-red-600 tracking-tight flex items-center">
+            <i data-lucide="shield-alert" class="w-8 h-8 mr-3"></i>
+            事故現場・安全守護者
+        </h1>
+        <button onclick="navigate('home')" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-full transition duration-150 shadow-md flex items-center">
+            <i data-lucide="home" class="w-5 h-5 mr-1"></i>
+            回首頁
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <div id="content-container" class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl"></div>
+
+    <footer class="mt-8 text-center text-gray-500 text-sm py-4">
+        健康與護理課程教材設計 • 事故傷害風險分析電子報
+    </footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// 設定：後端 URL（每次開 Tunnel 後更新這一行）
+// ═══════════════════════════════════════════════
+const BACKEND_URL = "http://127.0.0.1:5009";
+// 正式上課時改為 Cloudflare Tunnel URL，例如：
+// const BACKEND_URL = "https://xxxx.trycloudflare.com";
+
+// ═══════════════════════════════════════════════
+// 狀態管理
+// ═══════════════════════════════════════════════
+let currentPage = 'home';
+const contentContainer = document.getElementById('content-container');
+
+// 學生資訊（填答完後存在這裡）
+let studentInfo = { class_name: '', seat: '', name: '' };
+let quizResults = {};
+let currentCaseKey = '';
+
+// ═══════════════════════════════════════════════
+// 案例資料庫
+// ═══════════════════════════════════════════════
+const cases = {
+    'case1': {
+        title: '購物中心旋轉鞦韆意外',
+        icon: 'ferris-wheel',
+        summary: '【樂園驚魂：人為疏失鑄大錯】某假日，購物中心歡樂設施突變煉獄！一名3歲男童因工作人員誤觸加速旋鈕，瞬間被拋出重摔在地，頭部嚴重撕裂。事件更波及3名試圖營救的成人，暴露出設施操作規範與員工訓練的重大漏洞。',
+        domino: [
+            { name: '環境因素 (社會/技術)', factor: '設備操作面板設計缺陷，轉速鈕易被誤觸。', color: 'bg-gray-100' },
+            { name: '人為疏失 (不當行為)', factor: '工作人員訓練不足、注意力不集中、操作流程不當。', color: 'bg-yellow-100' },
+            { name: '危險因素 (不安全狀態)', factor: '鞦韆高速運轉失控；幼童安全帶脫落。', color: 'bg-orange-100' },
+            { name: '意外事故 (立即事件)', factor: '男童從座椅上跌落，頭部撞擊；救援者遭高速鞦韆掃傷。', color: 'bg-red-100' },
+            { name: '損失 (後果)', factor: '男童頭部縫8針；3名成人受傷；營運商譽損失。', color: 'bg-slate-100' },
+        ],
+        prevention: [
+            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '制定嚴格的設施操作SOP；在設備周圍設置隔離區。', tag: 'stage-1' },
+            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '工作人員定期進行模擬訓練與考核；設備加裝防誤觸安全蓋；定期檢修安全帶。', tag: 'stage-1' },
+            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '立即按下緊急停止鈕；對男童頭部外傷進行止血與初步包紮；立即撥打119。', tag: 'stage-2' },
+            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '迅速將傷者送醫，由專業醫護人員處理傷口與檢查，防止感染與併發症。', tag: 'stage-3' },
+            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供傷者及其家屬心理創傷輔導；檢討並修訂遊樂設施管理規範。', tag: 'stage-3' },
+        ]
+    },
+    'case2': {
+        title: '彩色派對粉塵爆炸事故',
+        icon: 'flame',
+        summary: '【世紀悲劇：粉塵地獄】數百名年輕人夢寐以求的彩色派對，因舞台區噴灑的高濃度玉米澱粉塵遇熱源瞬間引爆！烈焰吞噬全場，造成15人死亡、逾480人全身大面積燒燙傷。這場人為疏失，凸顯了大型活動安全審核機制全面失靈的慘痛代價。',
+        domino: [
+            { name: '環境因素 (化學/物理)', factor: '現場有大量可燃性粉塵（玉米澱粉）與潛在點火源（燈光、電線）。', color: 'bg-gray-100' },
+            { name: '人為疏失 (不當態度/知識)', factor: '主辦方缺乏粉塵爆炸知識，未進行風險評估，違規使用危險材料。', color: 'bg-yellow-100' },
+            { name: '危險因素 (不安全狀態)', factor: '高濃度粉塵雲達到爆炸下限；火源引燃。', color: 'bg-orange-100' },
+            { name: '意外事故 (立即事件)', factor: '粉塵爆炸，火焰瞬間噴射，人群推擠踩踏。', color: 'bg-red-100' },
+            { name: '損失 (後果)', factor: '15人死亡，超過480人燒燙傷；國家醫療資源耗竭。', color: 'bg-slate-100' },
+        ],
+        prevention: [
+            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '宣導可燃性粉塵危害知識；政府嚴格審核大型活動材料安全性。', tag: 'stage-1' },
+            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '法規強制禁止使用易燃粉塵；活動現場規劃清晰逃生路線及滅火設備。', tag: 'stage-1' },
+            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '立即廣播疏散；對燒燙傷患者進行「沖脫泡蓋送」緊急處理；實施檢傷分類。', tag: 'stage-2' },
+            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '啟動大量傷患機制，調度燒燙傷中心資源，防止傷口感染與限制失能。', tag: 'stage-3' },
+            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供長期身心復健與職能重建；追究法律責任，促成公共安全法規修正。', tag: 'stage-3' },
+        ]
+    },
+    'case3': {
+        title: '花蓮震災大樓倒塌事故',
+        icon: 'hammer',
+        summary: '【天災背後的人禍】花蓮強震，位於斷層帶上的某電梯大樓竟在短短8秒內崩解！調查揭露，建案負責人缺乏土木專業資格，且施工過程有嚴重結構瑕疵。這不是單純的天災，而是無良建商與制度漏洞聯手造成的14條人命悲劇。',
+        domino: [
+            { name: '環境因素 (地理/結構)', factor: '建築物位於斷層帶（高地震風險）；結構耐震能力遠低於標準。', color: 'bg-gray-100' },
+            { name: '人為疏失 (專業/倫理)', factor: '建商不具備專業資格；施工團隊有重大結構錯誤；政府監造勘驗失職。', color: 'bg-yellow-100' },
+            { name: '危險因素 (不安全狀態)', factor: '地震來襲時建築物無法承受側向剪力。', color: 'bg-orange-100' },
+            { name: '意外事故 (立即事件)', factor: '大樓結構性潰散，8秒內倒塌。', color: 'bg-red-100' },
+            { name: '損失 (後果)', factor: '14條人命喪失；巨額財產損失；社會對建築安全信心崩潰。', color: 'bg-slate-100' },
+        ],
+        prevention: [
+            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '嚴格執行土地使用管制；對全民宣導防災與避難知識。', tag: 'stage-1' },
+            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '嚴格執行建築師/技師的專業簽證制度；強制老舊建築進行耐震補強。', tag: 'stage-1' },
+            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '地震時遵循「趴下、掩護、穩住」；立即啟動專業搜救隊伍。', tag: 'stage-2' },
+            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '對獲救傷者進行創傷醫學處理，預防擠壓傷併發症。', tag: 'stage-3' },
+            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供災民與家屬長期心理輔導；從重追訴非法建商，全面改革建築法規。', tag: 'stage-3' },
+        ]
+    }
+};
+
+// ═══════════════════════════════════════════════
+// 首頁（需先填學生資訊）
+// ═══════════════════════════════════════════════
+
+function renderHome() {
+    const infoFilled = studentInfo.class_name && studentInfo.name;
+    let html = `
+        <div class="text-center mb-10 fade-in">
+            <h2 class="text-4xl font-bold text-gray-800 mb-2">警鐘長鳴：大型事故的風險解構</h2>
+            <p class="text-xl text-gray-600">運用「骨牌理論」與「三段五級預防」分析真實案例，學習成為安全守護者。</p>
+        </div>
+    `;
+
+    // 學生資訊填寫區塊
+    if (!infoFilled) {
+        html += `
+        <div class="bg-red-50 border-2 border-red-400 rounded-xl p-6 mb-8 fade-in">
+            <h3 class="text-xl font-bold text-red-600 mb-4 flex items-center">
+                <i data-lucide="user-check" class="w-6 h-6 mr-2"></i>
+                請先填寫你的資料，才能開始分析
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">班級</label>
+                    <select id="input-class" class="w-full border border-gray-300 rounded-lg p-2 text-gray-800">
+                        <option value="">-- 選擇班級 --</option>
+                        ${['301','302','303','304','305','306','307','308','309','310','311','312'].map(c => `<option value="${c}">${c}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">座號</label>
+                    <input id="input-seat" type="number" min="1" max="50" placeholder="例：12"
+                        class="w-full border border-gray-300 rounded-lg p-2 text-gray-800">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">姓名</label>
+                    <input id="input-name" type="text" placeholder="請輸入真實姓名"
+                        class="w-full border border-gray-300 rounded-lg p-2 text-gray-800">
+                </div>
+            </div>
+            <button onclick="saveStudentInfo()"
+                class="mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-full transition shadow-md">
+                確認身份，開始學習
+            </button>
+        </div>
+        `;
+    } else {
+        html += `
+        <div class="bg-green-50 border border-green-300 rounded-xl p-4 mb-8 flex items-center justify-between fade-in">
+            <span class="text-green-700 font-semibold flex items-center">
+                <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                歡迎，${studentInfo.class_name}班 第${studentInfo.seat}號 <strong class="ml-1">${studentInfo.name}</strong>！
+            </span>
+            <button onclick="resetStudentInfo()" class="text-sm text-gray-400 hover:text-red-500 underline">重新填寫</button>
+        </div>
+        `;
+    }
+
+    html += `
+        <h3 class="text-2xl font-semibold text-red-500 mb-6 border-b-2 border-red-200 pb-2">點擊案例開始分析</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    `;
+
+    Object.keys(cases).forEach(key => {
+        const c = cases[key];
+        const disabled = !infoFilled;
+        html += `
+            <div onclick="${infoFilled ? `navigate('${key}')` : `alert('請先填寫班級、座號、姓名！')`}"
+                class="bg-white p-6 border-4 ${infoFilled ? 'border-transparent hover:border-red-400 cursor-pointer hover:scale-[1.02]' : 'border-gray-200 cursor-not-allowed opacity-60'} rounded-xl shadow-xl hover:shadow-2xl transition duration-300 transform group">
+                <div class="flex items-center mb-4">
+                    <i data-lucide="${c.icon}" class="w-10 h-10 text-red-500 mr-4"></i>
+                    <h4 class="text-xl font-bold text-gray-800">${c.title}</h4>
+                </div>
+                <p class="text-gray-600 text-sm">${c.summary}</p>
+                <span class="mt-4 inline-block text-sm text-red-500 font-semibold">${infoFilled ? '開始解構 →' : '請先填寫資料'}</span>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    contentContainer.innerHTML = html;
+    lucide.createIcons();
+}
+
+function saveStudentInfo() {
+    const cls = document.getElementById('input-class')?.value;
+    const seat = document.getElementById('input-seat')?.value;
+    const name = document.getElementById('input-name')?.value?.trim();
+
+    if (!cls || !seat || !name) {
+        alert('請完整填寫班級、座號與姓名！');
+        return;
+    }
+    studentInfo = { class_name: cls, seat: seat, name: name };
+    renderHome();
+}
+
+function resetStudentInfo() {
+    studentInfo = { class_name: '', seat: '', name: '' };
+    quizResults = {};
+    renderHome();
+}
+
+// ═══════════════════════════════════════════════
+// 案例分析頁
+// ═══════════════════════════════════════════════
+
+function renderCase(caseKey) {
+    currentCaseKey = caseKey;
+    if (!quizResults[caseKey]) quizResults[caseKey] = {};
+
+    const c = cases[caseKey];
+    const content = `
+        <div class="mb-6 fade-in">
+            <h2 class="text-4xl font-bold text-gray-800 mb-1 flex items-center">
+                <i data-lucide="${c.icon}" class="w-10 h-10 text-red-500 mr-3"></i>
+                ${c.title}：事故分析學習單
+            </h2>
+            <p class="text-lg text-gray-700 font-medium bg-red-50 p-3 rounded-lg border-l-4 border-red-400 mt-4">${c.summary}</p>
+        </div>
+
+        <div class="flex flex-wrap border-b mb-6 gap-1">
+            <button id="tab-domino" onclick="switchTab('${caseKey}', 'domino')"
+                class="tab-btn py-3 px-6 text-lg font-semibold border-b-4 border-red-500 text-red-600 transition duration-150">
+                第一部分：骨牌理論
+            </button>
+            <button id="tab-prevention" onclick="switchTab('${caseKey}', 'prevention')"
+                class="tab-btn py-3 px-6 text-lg font-semibold border-b-4 border-transparent text-gray-500 hover:text-red-500 hover:border-red-300 transition duration-150">
+                第二部分：三段五級
+            </button>
+            <button id="tab-report" onclick="renderSynthesisReport('${caseKey}')"
+                class="tab-btn py-3 px-6 text-lg font-semibold border-b-4 border-transparent text-gray-500 hover:text-green-600 hover:border-green-400 transition duration-150 ml-auto">
+                <i data-lucide="scroll-text" class="w-5 h-5 inline mr-1"></i>
+                生成分析報告 &amp; 送出
+            </button>
+        </div>
+
+        <div id="analysis-content"></div>
+    `;
+    contentContainer.innerHTML = content;
+    switchTab(caseKey, 'domino');
+    lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════
+// 第一部分：骨牌理論
+// ═══════════════════════════════════════════════
+
+function renderDomino(c) {
+    let html = `
+        <h3 class="text-3xl font-bold text-gray-700 mb-6 flex items-center">
+            <i data-lucide="dice-5" class="w-8 h-8 mr-3 text-red-500"></i>
+            第一部分：骨牌理論 — 尋找導致意外的連續事件
+        </h3>
+        <p class="text-gray-600 mb-8 font-medium bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400">
+            <strong>學習引導：</strong>請根據案例描述，自主思考每張骨牌代表的關鍵因素，填入反思區後再點擊「查看官方分析」。
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    `;
+
+    const dominoNames = ['環境因素', '人為疏失', '危險因素', '意外事故', '損失'];
+    const dominoIcons = ['trees', 'user-x', 'alert-triangle', 'zap', 'hospital'];
+
+    c.domino.forEach((d, index) => {
+        html += `
+            <div id="domino-item-${index}" class="domino-item ${d.color} p-5 rounded-lg border-b-4 border-red-400 shadow-lg flex flex-col justify-between">
+                <div class="text-xl font-extrabold text-red-700 mb-4 flex items-center">
+                    <i data-lucide="${dominoIcons[index]}" class="w-6 h-6 mr-2"></i>
+                    ${index + 1}. ${dominoNames[index]}
+                </div>
+                <h4 class="text-lg font-bold text-gray-800 mb-3">${d.name}</h4>
+                <div class="mb-3">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">✍️ 你的思考：</label>
+                    <textarea id="student-domino-input-${index}" rows="2"
+                        class="student-reflection-area w-full text-sm p-2 border border-gray-300 rounded-md bg-white"></textarea>
+                </div>
+                <div id="prompt-${index}" class="text-center">
+                    <button onclick="revealDominoAnswer('${index}', '${d.factor.replace(/'/g, "\\'")}')"
+                        class="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-3 rounded-full transition">
+                        點擊查看官方分析
+                    </button>
+                </div>
+                <p id="answer-${index}" class="text-sm text-gray-800 hidden font-semibold bg-red-100 p-3 rounded-md border border-red-300 mt-3"></p>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    document.getElementById('analysis-content').innerHTML = html;
+    lucide.createIcons();
+}
+
+function revealDominoAnswer(index, answer) {
+    const promptEl = document.getElementById(`prompt-${index}`);
+    const answerEl = document.getElementById(`answer-${index}`);
+    const inputEl = document.getElementById(`student-domino-input-${index}`);
+    if (promptEl && answerEl) {
+        promptEl.classList.add('hidden');
+        answerEl.innerHTML = `<span class="text-red-700 font-bold">【官方分析】</span>：${answer}`;
+        answerEl.classList.remove('hidden');
+        if (inputEl) {
+            inputEl.disabled = true;
+            inputEl.classList.replace('bg-white', 'bg-gray-100');
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════
+// 第二部分：三段五級
+// ═══════════════════════════════════════════════
+
+function getRandomWrongLevel(correctLevel) {
+    const all = ['一級：促進健康','二級：特殊保護','三級：早期診斷與治療','四級：限制失能','五級：復健'];
+    const wrong = all.filter(l => l !== correctLevel);
+    const picks = [];
+    while (picks.length < 2) {
+        const r = wrong[Math.floor(Math.random() * wrong.length)];
+        if (!picks.includes(r)) picks.push(r);
+    }
+    return picks;
+}
+
+function renderPrevention(c) {
+    let html = `
+        <h3 class="text-3xl font-bold text-gray-700 mb-6 flex items-center">
+            <i data-lucide="shield-half" class="w-8 h-8 mr-3 text-green-600"></i>
+            第二部分：三段五級預防 — 評估防護措施的時間點
+        </h3>
+        <p class="text-gray-600 mb-8 font-medium bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400">
+            <strong>學習引導：</strong>請將每項措施與它對應的「預防級別」配對。
+        </p>
+        <div class="grid grid-cols-1 gap-6">
+    `;
+
+    c.prevention.forEach((p, index) => {
+        let stageIcon = 'check-circle';
+        if (p.tag === 'stage-2') stageIcon = 'timer';
+        if (p.tag === 'stage-3') stageIcon = 'repeat-2';
+
+        const wrongs = getRandomWrongLevel(p.level);
+        let options = [p.level, ...wrongs];
+        options = [...new Set(options)].sort(() => Math.random() - 0.5);
+
+        html += `
+            <div id="prevention-item-${index}" class="${p.tag} p-5 rounded-xl border-l-8 shadow-lg transition duration-300">
+                <div class="flex items-center mb-2">
+                    <i data-lucide="${stageIcon}" class="w-6 h-6 mr-3 text-red-600"></i>
+                    <span class="text-sm font-semibold text-gray-500 mr-2">${p.stage}</span>
+                    <span class="text-lg font-extrabold text-gray-800">判斷級別：</span>
+                </div>
+                <p class="text-gray-700 mt-2 ml-9 font-bold">措施：${p.action}</p>
+                <div id="quiz-options-${index}" class="mt-4 ml-9 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    ${options.map(opt => `
+                        <button onclick="checkPreventionAnswer('${currentCaseKey}', ${index}, '${opt.replace(/'/g,"\\'")}', this)"
+                            class="prevention-btn-${index} bg-white text-gray-700 border border-gray-300 hover:bg-red-100 py-2 px-4 rounded-full text-sm transition shadow-sm">
+                            ${opt}
+                        </button>
+                    `).join('')}
+                </div>
+                <div id="quiz-feedback-${index}" class="mt-3 ml-9 hidden text-sm font-semibold p-2 rounded-lg"></div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    document.getElementById('analysis-content').innerHTML = html;
+    lucide.createIcons();
+}
+
+function checkPreventionAnswer(caseKey, index, selectedLevel, clickedButton) {
+    const correctLevel = cases[caseKey].prevention[index].level;
+    const feedbackEl = document.getElementById(`quiz-feedback-${index}`);
+    const itemEl = document.getElementById(`prevention-item-${index}`);
+    const buttons = document.querySelectorAll(`.prevention-btn-${index}`);
+    const isCorrect = selectedLevel === correctLevel;
+
+    quizResults[caseKey][index] = { selected: selectedLevel, correct: correctLevel, isCorrect };
+
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.classList.remove('hover:bg-red-100');
+        if (btn.innerText.trim() === selectedLevel) {
+            btn.classList.add(isCorrect ? 'bg-green-500' : 'bg-red-500', 'text-white', 'border-transparent');
+            btn.classList.remove('bg-white', 'text-gray-700');
+        } else if (btn.innerText.trim() === correctLevel) {
+            btn.classList.add('bg-green-200', 'border-green-600');
+        }
+    });
+
+    feedbackEl.classList.remove('hidden');
+    if (isCorrect) {
+        feedbackEl.className = 'mt-3 ml-9 text-sm font-semibold p-2 rounded-lg bg-green-100 text-green-700';
+        feedbackEl.innerHTML = `✓ 正確！措施屬於「${correctLevel}」。`;
+    } else {
+        feedbackEl.className = 'mt-3 ml-9 text-sm font-semibold p-2 rounded-lg bg-red-100 text-red-700';
+        feedbackEl.innerHTML = `✗ 再想想！正確答案是：<span class="text-green-700 font-bold">${correctLevel}</span>`;
+    }
+    lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════
+// 報告生成 + 送出 + AI 回饋
+// ═══════════════════════════════════════════════
+
+function renderSynthesisReport(caseKey) {
+    switchTab(caseKey, 'report');
+
+    const c = cases[caseKey];
+    const numTotal = c.prevention.length;
+    const results = quizResults[caseKey] || {};
+    const numCorrect = Object.values(results).filter(r => r.isCorrect).length;
+    const score = Math.round((numCorrect / numTotal) * 100) || 0;
+    const allAnswered = Object.keys(results).length === numTotal;
+
+    // 收集骨牌分析文字（盡量抓到）
+    const dominoInputs = {};
+    for (let i = 0; i < 5; i++) {
+        const el = document.getElementById(`student-domino-input-${i}`);
+        dominoInputs[i] = el ? el.value : '';
+    }
+
+    let feedbackText = '';
+    let feedbackClass = '';
+    if (!allAnswered) {
+        feedbackText = `你尚未完成第二部分的配對題（已答 ${Object.keys(results).length}/${numTotal} 題）。填完後再送出可獲得更完整的回饋！`;
+        feedbackClass = 'bg-blue-100 text-blue-700 border-blue-400';
+    } else if (numCorrect === numTotal) {
+        feedbackText = `完美！所有配對均正確（${numCorrect}/${numTotal}）。表現出色！`;
+        feedbackClass = 'bg-green-100 text-green-700 border-green-400';
+    } else if (numCorrect > numTotal / 2) {
+        feedbackText = `表現良好（${numCorrect}/${numTotal} 正確，${score}%）。建議回顧一下一級與二級的區別。`;
+        feedbackClass = 'bg-yellow-100 text-yellow-700 border-yellow-400';
+    } else {
+        feedbackText = `需要加強（${numCorrect}/${numTotal} 正確，${score}%）。請重新閱讀三段五級的定義。`;
+        feedbackClass = 'bg-red-100 text-red-700 border-red-400';
+    }
+
+    let reportHtml = `
+        <h3 class="text-3xl font-bold text-gray-700 mb-6 flex items-center fade-in">
+            <i data-lucide="scroll-text" class="w-8 h-8 mr-3 text-green-600"></i>
+            事故分析總結報告（${c.title}）
+        </h3>
+
+        <!-- 學生資訊確認 -->
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 flex flex-wrap gap-4 text-sm">
+            <span>班級：<strong>${studentInfo.class_name}</strong></span>
+            <span>座號：<strong>${studentInfo.seat}</strong></span>
+            <span>姓名：<strong>${studentInfo.name}</strong></span>
+            <span>案例：<strong>${c.title}</strong></span>
+            <span>三段五級得分：<strong>${numCorrect}/${numTotal}（${score}%）</strong></span>
+        </div>
+
+        <!-- 成績回饋 -->
+        <div class="p-6 rounded-xl shadow mb-8 ${feedbackClass} border-l-8">
+            <h4 class="text-xl font-bold mb-2 flex items-center">
+                <i data-lucide="message-square" class="w-5 h-5 mr-2"></i>
+                學習回饋
+            </h4>
+            <p class="text-lg">${feedbackText}</p>
+        </div>
+
+        <!-- 骨牌理論表 -->
+        <h4 class="text-2xl font-bold text-red-600 mb-4 border-b pb-2 flex items-center">
+            <i data-lucide="dice-5" class="w-6 h-6 mr-2"></i>骨牌理論分析表
+        </h4>
+        <div class="overflow-x-auto mb-8">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg shadow text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+                        <th class="py-3 px-4 text-left w-1/4">骨牌名稱</th>
+                        <th class="py-3 px-4 text-left w-1/3">你的分析</th>
+                        <th class="py-3 px-4 text-left w-1/3">官方分析</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${c.domino.map((d, i) => `
+                    <tr class="border-b hover:bg-red-50">
+                        <td class="py-3 px-4 font-semibold text-red-700">${d.name}</td>
+                        <td class="py-3 px-4">${(dominoInputs[i] || '（未填寫）').replace(/\n/g,'<br>')}</td>
+                        <td class="py-3 px-4 text-gray-600">${d.factor}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 三段五級表 -->
+        <h4 class="text-2xl font-bold text-green-600 mb-4 border-b pb-2 flex items-center">
+            <i data-lucide="shield-half" class="w-6 h-6 mr-2"></i>三段五級預防策略
+        </h4>
+        <div class="overflow-x-auto mb-8">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg shadow text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+                        <th class="py-3 px-4 text-left w-2/5">措施內容</th>
+                        <th class="py-3 px-4 text-left w-1/4">正確級別</th>
+                        <th class="py-3 px-4 text-left w-1/4">你的選擇</th>
+                        <th class="py-3 px-4 text-center w-1/12">結果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${c.prevention.map((p, i) => {
+                        const r = results[i] || { selected: '未作答', isCorrect: false };
+                        const mark = allAnswered ? (r.isCorrect ? '✓' : '✗') : '—';
+                        const rowClass = allAnswered ? (r.isCorrect ? 'bg-green-50' : 'bg-red-50') : '';
+                        return `
+                        <tr class="border-b ${rowClass}">
+                            <td class="py-3 px-4">${p.action}</td>
+                            <td class="py-3 px-4 font-semibold text-green-700">${p.level}</td>
+                            <td class="py-3 px-4">${r.selected}</td>
+                            <td class="py-3 px-4 text-center font-bold ${r.isCorrect?'text-green-600':'text-red-600'}">${mark}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- AI 回饋區 -->
+        <div id="ai-feedback-section" class="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl p-6 mb-6">
+            <h4 class="text-xl font-bold text-red-600 mb-3 flex items-center">
+                <i data-lucide="bot" class="w-6 h-6 mr-2"></i>
+                AI 個人化學習回饋
+            </h4>
+            <div id="ai-feedback-content">
+                <button onclick="submitToBackend('${caseKey}')"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full transition shadow-lg flex items-center">
+                    <i data-lucide="send" class="w-5 h-5 mr-2"></i>
+                    送出學習記錄並獲得 AI 回饋
+                </button>
+                <p class="text-xs text-gray-400 mt-2">送出後將生成個人化回饋，並將你的學習記錄存為 Word 檔。</p>
+            </div>
+        </div>
+    `;
+
+    // 暫存收集到的答案（供 submitToBackend 使用）
+    window._currentSubmitData = {
+        class_name: studentInfo.class_name,
+        seat: studentInfo.seat,
+        name: studentInfo.name,
+        case_title: c.title,
+        domino_inputs: dominoInputs,
+        prevention_results: results,
+        score: numCorrect,
+        total: numTotal
+    };
+
+    document.getElementById('analysis-content').innerHTML = reportHtml;
+    lucide.createIcons();
+}
+
+async function submitToBackend(caseKey) {
+    const data = window._currentSubmitData;
+    if (!data) return;
+
+    const feedbackContent = document.getElementById('ai-feedback-content');
+    feedbackContent.innerHTML = `
+        <div class="flex items-center text-gray-500">
+            <svg class="animate-spin w-5 h-5 mr-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            正在送出資料並請 AI 生成個人化回饋，請稍候...
+        </div>
+    `;
+
+    try {
+        // 送出到後端
+        const res = await fetch(`${BACKEND_URL}/api/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (!res.ok) throw new Error(`伺服器錯誤 ${res.status}`);
+        const { id } = await res.json();
+
+        // 輪詢等待結果
+        await pollForFeedback(id, feedbackContent, data.name);
+
+    } catch (err) {
+        feedbackContent.innerHTML = `
+            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
+                <strong>連線失敗：</strong>${err.message}<br>
+                <small>請確認後端是否已啟動，或重新整理後再試。</small>
+            </div>
+        `;
+    }
+}
+
+async function pollForFeedback(id, container, name) {
+    const maxAttempts = 60; // 最多等 2 分鐘
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/status/${id}`);
+            const json = await res.json();
+
+            if (json.status === 'done') {
+                container.innerHTML = `
+                    <div class="fade-in">
+                        <p class="text-gray-800 leading-relaxed text-base whitespace-pre-wrap">${json.feedback}</p>
+                        <div class="mt-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm flex items-center">
+                            <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                            學習記錄已成功儲存為 Word 檔！
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            } else if (json.status === 'error') {
+                container.innerHTML = `
+                    <div class="bg-red-100 text-red-700 p-4 rounded-lg">
+                        <strong>AI 回饋生成失敗：</strong>${json.error || '未知錯誤'}<br>
+                        <small>Word 檔可能已儲存，請洽老師確認。</small>
+                    </div>
+                `;
+                return;
+            }
+        } catch (_) { /* 繼續輪詢 */ }
+    }
+    container.innerHTML = `<p class="text-gray-500">回饋生成中，請稍後重新整理頁面查看。</p>`;
+}
+
+// ═══════════════════════════════════════════════
+// 導航與 Tab 切換
+// ═══════════════════════════════════════════════
+
+function navigate(key) {
+    currentPage = key;
+    if (key === 'home') {
+        renderHome();
+    } else if (cases[key]) {
+        renderCase(key);
+    }
+}
+
+function switchTab(caseKey, tab) {
+    const c = cases[caseKey];
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-red-500', 'text-red-600', 'border-green-400', 'text-green-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+
+    const activeBtn = document.getElementById(`tab-${tab}`);
+    if (activeBtn) {
+        activeBtn.classList.remove('border-transparent', 'text-gray-500');
+        activeBtn.classList.add(tab === 'report' ? 'border-green-400' : 'border-red-500',
+                               tab === 'report' ? 'text-green-600' : 'text-red-600');
+    }
+
+    if (tab === 'domino') renderDomino(c);
+    else if (tab === 'prevention') renderPrevention(c);
+    lucide.createIcons();
+}
+
+// 初始化
+window.onload = () => navigate('home');
+</script>
+</body>
+</html>

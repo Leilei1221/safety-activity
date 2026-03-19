@@ -62,6 +62,8 @@ const contentContainer = document.getElementById('content-container');
 let studentInfo = { class_name: '', seat: '', name: '' };
 let quizResults = {};
 let currentCaseKey = '';
+let dominoState = {};      // 暫存骨牌填答 {caseKey: {inputs:{}, revealed:{}}}
+let preventionOptions = {}; // 固定亂序選項 {caseKey: [[opt,...], ...]}
 
 // ═══════════════════════════════════════════════
 // 案例資料庫
@@ -316,6 +318,17 @@ function renderDomino(c) {
     html += `</div>`;
     document.getElementById('analysis-content').innerHTML = html;
     lucide.createIcons();
+    // 還原已儲存的骨牌填答狀態
+    const saved = dominoState[currentCaseKey];
+    if (saved) {
+        for (let i = 0; i < 5; i++) {
+            const el = document.getElementById(`student-domino-input-${i}`);
+            if (el && saved.inputs[i] !== undefined) el.value = saved.inputs[i];
+            if (saved.revealed && saved.revealed[i]) {
+                revealDominoAnswer(String(i), c.domino[i].factor);
+            }
+        }
+    }
 }
 
 function revealDominoAnswer(index, answer) {
@@ -349,6 +362,16 @@ function getRandomWrongLevel(correctLevel) {
 }
 
 function renderPrevention(c) {
+    const caseKey = currentCaseKey;
+    // 只產生一次亂序選項，之後切換 Tab 不重新洗牌
+    if (!preventionOptions[caseKey]) {
+        preventionOptions[caseKey] = c.prevention.map(p => {
+            const wrongs = getRandomWrongLevel(p.level);
+            let options = [p.level, ...wrongs];
+            return [...new Set(options)].sort(() => Math.random() - 0.5);
+        });
+    }
+    const savedOptions = preventionOptions[caseKey];
     let html = `
         <h3 class="text-3xl font-bold text-gray-700 mb-6 flex items-center">
             <i data-lucide="shield-half" class="w-8 h-8 mr-3 text-green-600"></i>
@@ -365,9 +388,7 @@ function renderPrevention(c) {
         if (p.tag === 'stage-2') stageIcon = 'timer';
         if (p.tag === 'stage-3') stageIcon = 'repeat-2';
 
-        const wrongs = getRandomWrongLevel(p.level);
-        let options = [p.level, ...wrongs];
-        options = [...new Set(options)].sort(() => Math.random() - 0.5);
+        const options = savedOptions[index];
 
         html += `
             <div id="prevention-item-${index}" class="${p.tag} p-5 rounded-xl border-l-8 shadow-lg transition duration-300">
@@ -393,6 +414,8 @@ function renderPrevention(c) {
     html += `</div>`;
     document.getElementById('analysis-content').innerHTML = html;
     lucide.createIcons();
+    // 還原已作答的視覺狀態
+    restorePreventionState(caseKey);
 }
 
 function checkPreventionAnswer(caseKey, index, selectedLevel, clickedButton) {
@@ -661,7 +684,48 @@ function navigate(key) {
     }
 }
 
+function saveDominoState(caseKey) {
+    if (!dominoState[caseKey]) dominoState[caseKey] = { inputs: {}, revealed: {} };
+    for (let i = 0; i < 5; i++) {
+        const el = document.getElementById(`student-domino-input-${i}`);
+        if (el !== null) dominoState[caseKey].inputs[i] = el.value;
+        const ansEl = document.getElementById(`answer-${i}`);
+        if (ansEl !== null) dominoState[caseKey].revealed[i] = !ansEl.classList.contains('hidden');
+    }
+}
+
+function restorePreventionState(caseKey) {
+    const results = quizResults[caseKey] || {};
+    Object.entries(results).forEach(([index, r]) => {
+        const idx = parseInt(index);
+        const buttons = document.querySelectorAll(`.prevention-btn-${idx}`);
+        const feedbackEl = document.getElementById(`quiz-feedback-${idx}`);
+        buttons.forEach(btn => {
+            btn.disabled = true;
+            btn.classList.remove('hover:bg-red-100');
+            const btnText = btn.innerText.trim();
+            if (btnText === r.selected) {
+                btn.classList.add(r.isCorrect ? 'bg-green-500' : 'bg-red-500', 'text-white', 'border-transparent');
+                btn.classList.remove('bg-white', 'text-gray-700');
+            } else if (btnText === r.correct) {
+                btn.classList.add('bg-green-200', 'border-green-600');
+            }
+        });
+        if (feedbackEl) {
+            feedbackEl.classList.remove('hidden');
+            if (r.isCorrect) {
+                feedbackEl.className = 'mt-3 ml-9 text-sm font-semibold p-2 rounded-lg bg-green-100 text-green-700';
+                feedbackEl.innerHTML = `✓ 正確！措施屬於「${r.correct}」。`;
+            } else {
+                feedbackEl.className = 'mt-3 ml-9 text-sm font-semibold p-2 rounded-lg bg-red-100 text-red-700';
+                feedbackEl.innerHTML = `✗ 再想想！正確答案是：<span class="text-green-700 font-bold">${r.correct}</span>`;
+            }
+        }
+    });
+}
+
 function switchTab(caseKey, tab) {
+    saveDominoState(caseKey);
     const c = cases[caseKey];
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('border-red-500', 'text-red-600', 'border-green-400', 'text-green-600');

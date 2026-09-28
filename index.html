@@ -201,6 +201,91 @@
             transition: all .3s; max-width: calc(100% - 32px); pointer-events: none; }
         .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+
+        /* ── 事故故事：時間線電影播放器 ── */
+        .stage { position: relative; height: clamp(260px, 42vw, 400px); border-radius: 1rem; overflow: hidden;
+            background: linear-gradient(180deg, #1e293b, #0f172a); color: #fff; isolation: isolate; }
+        .stage .sky { position: absolute; inset: 0; z-index: -2; transition: background 1s; }
+        .stage .ground { position: absolute; left: -20%; right: -20%; bottom: 0; height: 38%; z-index: -1;
+            transform: perspective(300px) rotateX(55deg); transform-origin: bottom;
+            background-image: linear-gradient(to right, rgba(255,255,255,.12) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,.12) 1px, transparent 1px);
+            background-size: 50px 50px; animation: floorMove 4s linear infinite; }
+        .stage .hero { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); }
+        .stage .hero .lucide { width: clamp(70px, 14vw, 130px); height: clamp(70px, 14vw, 130px); stroke-width: 1.5;
+            filter: drop-shadow(0 0 18px rgba(255,255,255,.35)); }
+        .stage .particles span { position: absolute; border-radius: 50%; pointer-events: none; }
+        .stage .caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 1rem 1.25rem 1.1rem;
+            background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,.55) 70%, transparent); }
+        .stage .caption .time { display: inline-block; font-weight: 800; font-size: .8rem; letter-spacing: .1em;
+            background: var(--tape); color: #111827; padding: .15rem .6rem; border-radius: 9999px; }
+        .stage .caption h4 { font-size: clamp(1.2rem, 3vw, 1.7rem); font-weight: 900; margin: .35rem 0 .25rem; }
+        .stage .caption p { font-size: clamp(.95rem, 2.1vw, 1.1rem); line-height: 1.6; color: #e5e7eb; min-height: 3.2em; }
+        .chapter-in { animation: chapterIn .8s cubic-bezier(.2,.8,.2,1); }
+        @keyframes chapterIn { from { opacity: 0; transform: scale(1.12); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+
+        .fx-calm .sky { background: radial-gradient(ellipse at 50% 20%, #7c3aed 0%, #1e1b4b 55%, #0f172a 100%); }
+        .fx-calm .hero { animation: bob 3s ease-in-out infinite; }
+        .fx-spin .sky { background: radial-gradient(ellipse at 50% 30%, #0ea5e9, #1e3a8a 60%, #0f172a); }
+        .fx-spin .hero .lucide { animation: spin 4s linear infinite; }
+        .fx-spinfast .sky { background: radial-gradient(ellipse at 50% 30%, #f59e0b, #7c2d12 60%, #0f172a); }
+        .fx-spinfast .hero .lucide { animation: spin .5s linear infinite; }
+        .fx-impact .sky { background: radial-gradient(circle at 50% 45%, #fca5a5, #991b1b 45%, #1f0a0a); }
+        .fx-impact { animation: shake .45s 2; }
+        .fx-impact .hero .lucide { animation: throb .8s ease-in-out infinite; }
+        .fx-powder .sky { background: radial-gradient(ellipse at 50% 20%, #db2777, #6d28d9 45%, #0f172a); }
+        .fx-fire .sky { background: radial-gradient(ellipse at 50% 90%, #fde047, #f97316 25%, #b91c1c 55%, #1c0505); animation: flicker .25s infinite alternate; }
+        .fx-fire .hero .lucide { animation: throb .5s ease-in-out infinite; color: #fef08a; }
+        .fx-siren .sky { background: #0f172a; }
+        .fx-siren .sky::after { content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 20% 20%, rgba(239,68,68,.75), transparent 45%), radial-gradient(circle at 80% 20%, rgba(59,130,246,.75), transparent 45%);
+            animation: sirenSwap .8s steps(2, jump-none) infinite; }
+        .fx-hospital .sky { background: radial-gradient(ellipse at 50% 30%, #99f6e4, #0f766e 55%, #042f2e); }
+        .fx-hospital .hero { animation: bob 3s ease-in-out infinite; }
+        .fx-dark .sky { background: radial-gradient(ellipse at 50% 40%, #374151, #030712 70%); }
+        .fx-dark .hero .lucide { color: #fca5a5; animation: fadeBeat 3s ease-in-out infinite; }
+        .fx-court .sky { background: radial-gradient(ellipse at 50% 30%, #a16207, #422006 60%, #0c0a09); }
+        .fx-court .hero .lucide { transform-origin: 80% 80%; animation: gavel 1.6s ease-in-out infinite; }
+        .fx-shake .sky { background: radial-gradient(ellipse at 50% 30%, #475569, #0f172a 70%); }
+        .fx-shake { animation: shake .3s linear infinite; }
+        .fx-rubble .sky { background: radial-gradient(ellipse at 50% 30%, #78716c, #292524 60%, #0c0a09); }
+        .fx-rubble .hero .lucide { animation: tilt 2.5s ease-in forwards; transform-origin: 50% 100%; }
+        @keyframes bob { 0%,100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -58%); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes throb { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        @keyframes flicker { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+        @keyframes fadeBeat { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+        @keyframes gavel { 0%,60%,100% { transform: rotate(0); } 30% { transform: rotate(-35deg); } }
+        @keyframes shake { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-6px, 3px); } 50% { transform: translate(5px, -3px); } 75% { transform: translate(-3px, -2px); } }
+        @keyframes tilt { from { transform: rotate(0); } to { transform: rotate(14deg); } }
+        @keyframes rise { from { transform: translateY(0) scale(1); opacity: .95; } to { transform: translateY(-420px) scale(.3); opacity: 0; } }
+        @keyframes drift { 0% { transform: translate(0,0) scale(.6); opacity: 0; } 20% { opacity: .9; } 100% { transform: translate(var(--dx), -140px) scale(1.8); opacity: 0; } }
+        @keyframes fall { from { transform: translateY(-40px) rotate(0); opacity: 1; } to { transform: translateY(460px) rotate(300deg); opacity: .6; } }
+
+        .timeline { position: relative; display: flex; justify-content: space-between; margin: 1.5rem .5rem .5rem; }
+        .timeline::before { content: ''; position: absolute; left: 0; right: 0; top: 13px; height: 4px; background: #e5e7eb; border-radius: 4px; }
+        .timeline .bar { position: absolute; left: 0; top: 13px; height: 4px; background: linear-gradient(90deg, #f59e0b, #ef4444); border-radius: 4px; transition: width .6s ease; }
+        .timeline button { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: .35rem; background: none; border: 0; cursor: pointer; flex: 1; min-width: 0; }
+        .timeline .dot { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 4px solid #d1d5db; transition: all .3s; font-size: .75rem; font-weight: 800; color: #9ca3af; display: flex; align-items: center; justify-content: center; }
+        .timeline .seen .dot { border-color: #ef4444; color: #ef4444; }
+        .timeline .current .dot { background: #ef4444; color: #fff; transform: scale(1.2); box-shadow: 0 0 0 6px rgba(239,68,68,.2); }
+        .timeline .label { font-size: .72rem; color: #6b7280; text-align: center; line-height: 1.2; padding: 0 2px; }
+        .timeline .current .label { color: #b91c1c; font-weight: 700; }
+        @media (max-width: 640px) { .timeline .label { display: none; } }
+
+        /* ── 現場模擬 ── */
+        .sim-card { border-radius: 1rem; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,.12); border: 1px solid #e5e7eb; }
+        .sim-card .stage { height: clamp(150px, 22vw, 200px); border-radius: 0; }
+        .sim-opt { text-align: left; width: 100%; padding: .85rem 1rem; border-radius: .75rem; border: 2px solid #e5e7eb; background: #fff; transition: all .2s; }
+        .sim-opt:not(:disabled):hover { border-color: #f87171; background: #fef2f2; transform: translateX(4px); }
+        .sim-opt.right { border-color: #22c55e; background: #f0fdf4; }
+        .sim-opt.wrong { border-color: #ef4444; background: #fef2f2; }
+        .sim-opt:disabled { cursor: default; }
+
+        .stepper a { position: relative; }
+        .stepper .num { display: inline-flex; width: 1.5rem; height: 1.5rem; border-radius: 50%; align-items: center; justify-content: center; font-size: .8rem; margin-right: .35rem; background: #f3f4f6; }
+        .stepper .done .num { background: #22c55e; color: #fff; }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
         }
@@ -288,6 +373,8 @@ function safeSet(key, val) { try { localStorage.setItem(key, val); return true; 
 function emptyState() {
     return {
         studentInfo: { class_name: '', seat: '', name: '' },
+        storySeen: {},         // {caseKey: 看過的最後一章 index}
+        simResults: {},        // {caseKey: {index: {choice, correct}}}
         dominoState: {},       // {caseKey: {inputs:{0:''..}, revealed:{0:true..}}}
         quizResults: {},       // {caseKey: {index: {selected, correct, isCorrect}}}
         preventionOptions: {}, // {caseKey: [[opt,...], ...]} 固定亂序，避免選項跳來跳去
@@ -422,7 +509,130 @@ const cases = {
     }
 };
 const ALL_LEVELS = ['一級：促進健康', '二級：特殊保護', '三級：早期診斷與治療', '四級：限制失能', '五級：復健'];
-const TABS = ['domino', 'prevention', 'report'];
+// ═══════════════════════════════════════════════
+// 事故故事時間線 + 現場模擬
+// fx：場景動畫效果（calm/spin/spinfast/impact/powder/fire/siren/hospital/dark/court/shake/rubble）
+// ═══════════════════════════════════════════════
+const storyData = {
+    'case1': {
+        // 【待確認】此案例的日期、地點與新聞出處尚未查證，請老師補上後再移除 pending
+        pending: true,
+        sources: '資料來源：待補充（請老師提供新聞出處）',
+        chapters: [
+            { time: '某個假日', title: '熱鬧的兒童遊樂區', fx: 'spin', icon: 'ferris-wheel',
+              text: '購物中心的兒童遊樂區擠滿了家庭。一名3歲男童坐上旋轉鞦韆，家長在一旁拍照。' },
+            { time: '意外前幾秒', title: '被誤觸的加速旋鈕', fx: 'spinfast', icon: 'gauge',
+              text: '操作人員誤觸了控制面板上的加速旋鈕，鞦韆轉速突然越來越快。' },
+            { time: '意外瞬間', title: '男童被甩出', fx: 'impact', icon: 'alert-octagon',
+              text: '高速旋轉下，男童從座椅上被甩出，頭部重摔在地。' },
+            { time: '救援時', title: '救人的人也受傷了', fx: 'siren', icon: 'users',
+              text: '3名成人衝上前想救援，卻在鞦韆還沒停下時，被高速轉動的鞦韆掃傷。' },
+            { time: '事後', title: '縫了8針的教訓', fx: 'hospital', icon: 'hospital',
+              text: '男童頭部縫8針，3名成人受傷。事件暴露出設施操作規範與員工訓練的重大漏洞。' },
+        ],
+        sim: [
+            { scene: '你是在旁邊的家長。鞦韆突然越轉越快，你看到孩子快抓不住了！你第一個動作是？', fx: 'spinfast',
+              options: [
+                { text: '立刻衝進去抓住鞦韆', correct: false, why: '高速運轉的設備會把靠近的人掃傷——本案3名想救人的成人就是這樣受傷的。' },
+                { text: '大聲要求操作員立刻按下緊急停止鈕，確認設備完全停止', correct: true, why: '先讓危險源停止，才能安全救人。「先確保自身安全，再救人」是救援第一原則。' },
+                { text: '先拿手機錄影存證', correct: false, why: '存證不是第一優先，分秒必爭的是讓設備停下來。' },
+              ] },
+            { scene: '鞦韆停了。男童摔在地上，頭部流血、一直哭。你該怎麼處理？', fx: 'impact',
+              options: [
+                { text: '趕快把他抱起來搖一搖，確認他有沒有意識', correct: false, why: '頭部撞擊可能合併頸椎受傷，不可任意搬動或搖晃。' },
+                { text: '讓他保持不動，用乾淨紗布或布直接加壓止血，同時請旁人撥打119', correct: true, why: '直接加壓是最有效的止血法；保持不動可避免可能的頸椎傷害惡化。' },
+                { text: '用衛生紙沾水把傷口擦乾淨，再塗上藥膏', correct: false, why: '開放性頭部傷口應先加壓止血並送醫，由醫療人員清創縫合。' },
+              ] },
+            { scene: '男童縫合後回家。接下來24小時，照顧者最需要注意什麼？', fx: 'hospital',
+              options: [
+                { text: '傷口縫好就沒事了，不用特別觀察', correct: false, why: '頭部外傷後可能出現延遲性的顱內出血，需要持續觀察。' },
+                { text: '觀察是否出現嗜睡叫不醒、持續嘔吐、劇烈頭痛或抽搐，一出現就立刻回診', correct: true, why: '這些都是顱內傷害的警訊，必須立即就醫。' },
+                { text: '頭痛就先吃成藥壓下來，不必回診', correct: false, why: '止痛藥可能掩蓋警訊，頭痛加劇應回診而不是自行服藥。' },
+              ] },
+        ]
+    },
+    'case2': {
+        sources: '資料來源：衛生福利部「八仙樂園粉塵暴燃專區」、中央社、中時新聞網、遠見雜誌等報導。',
+        chapters: [
+            { time: '2015/06/27 晚間', title: '八仙樂園的彩色派對', fx: 'calm', icon: 'music',
+              text: '新北市八里區八仙水上樂園舉辦「Color Play Asia 彩色派對」，上千名年輕人在排空水的泳池區，準備迎接暑假。' },
+            { time: '活動進行中', title: '越來越濃的彩色粉塵', fx: 'powder', icon: 'cloud',
+              text: '舞台持續向人群噴灑彩色玉米澱粉，粉塵瀰漫、能見度越來越低。舞台上架設著會發熱的電腦燈。' },
+            { time: '約 20:32', title: '火焰竄向人群', fx: 'fire', icon: 'flame',
+              text: '舞台前方突然起火，火焰沿著空氣中的粉塵瞬間蔓延，吞噬了整個派對區。' },
+            { time: '當晚到隔天', title: '全台醫院總動員', fx: 'siren', icon: 'ambulance',
+              text: '近500人燒燙傷，平均燒燙傷面積約四成。傷患分送各地，全台共52家醫院收治住院。' },
+            { time: '事後', title: '15條年輕的生命', fx: 'dark', icon: 'heart-crack',
+              text: '最終15人不幸死亡。檢方鑑定認定：舞台電腦燈的高溫，引燃了空氣中的玉米澱粉粉塵。' },
+            { time: '2018 年', title: '判決與修法', fx: 'court', icon: 'gavel',
+              text: '主辦人因業務過失致死，判刑5年定讞。政府全面禁止大型活動噴灑色粉，並強化大型活動的安全管理。' },
+        ],
+        sim: [
+            { scene: '派對開始了。舞台一直往人群噴色粉，濃到看不清前方，舞台上的燈具很燙。你會怎麼做？', fx: 'powder',
+              options: [
+                { text: '擠到最前面，搶最多的粉最好玩', correct: false, why: '粉塵最濃處就是最危險的地方。' },
+                { text: '察覺「可燃粉塵＋熱源」有爆燃風險，離開粉塵最濃處並向工作人員反映', correct: true, why: '粉塵濃度夠高、再遇上熱源就可能爆燃。察覺危險並遠離，是最好的自我保護。' },
+                { text: '點根菸放鬆一下', correct: false, why: '在可燃粉塵中出現明火，等於直接點燃火源。' },
+              ] },
+            { scene: '突然一陣火焰從舞台前方竄過來，你的衣服著火了！', fx: 'fire',
+              options: [
+                { text: '趕快往外狂奔找水', correct: false, why: '奔跑會帶來更多空氣，讓火燒得更旺。' },
+                { text: '停、躺、滾：立刻停下、躺倒、雙手摀臉，來回翻滾壓熄火焰', correct: true, why: '翻滾可以隔絕空氣、壓熄火焰；摀臉能保護臉部與呼吸道。' },
+                { text: '用手拍打身上的火', correct: false, why: '徒手拍打效果有限，還會讓手部嚴重燒傷。' },
+              ] },
+            { scene: '火熄了，同伴的手臂和腿嚴重燒燙傷，旁邊有水源。正確的處置是？', fx: 'hospital',
+              options: [
+                { text: '趕快塗上牙膏或醬油降溫', correct: false, why: '偏方會污染傷口、增加感染風險，也妨礙醫師判斷傷勢。' },
+                { text: '沖脫泡蓋送：用流動冷水沖（約15–30分鐘），在水中小心脫去或剪開衣物（黏住的不要硬扯），再覆蓋乾淨布料並送醫', correct: true, why: '這是燒燙傷的標準處理五步驟。大面積燒燙傷沖水時也要注意保暖、避免失溫。' },
+                { text: '直接拿冰塊冰敷', correct: false, why: '冰塊可能造成凍傷，大面積冰敷更可能導致失溫。' },
+              ] },
+            { scene: '你是現場救護指揮官：傷患有數百人，救護車有限。你會怎麼安排？', fx: 'siren',
+              options: [
+                { text: '誰先排隊就先送誰', correct: false, why: '先到先送會讓最危急的傷患錯過黃金救援時間。' },
+                { text: '進行檢傷分類，依傷勢嚴重度決定後送順序，並分散送往不同醫院', correct: true, why: '這就是大量傷患的應變原則。八仙事件中，全台共52家醫院一起收治傷患。' },
+                { text: '全部送到最近的那家醫院', correct: false, why: '單一醫院會瞬間癱瘓，反而延誤所有人的治療。' },
+              ] },
+        ]
+    },
+    'case3': {
+        sources: '資料來源：中央社、中央廣播電臺、鏡週刊、自由時報等報導；臺灣花蓮地方檢察署新聞稿。',
+        chapters: [
+            { time: '2018/02/06 23:50', title: '深夜的強震', fx: 'shake', icon: 'activity',
+              text: '花蓮發生規模6.0的強烈地震（中央氣象局當時公布），花蓮市震度達7級。許多人正在睡夢中。' },
+            { time: '地震發生後約8秒', title: '大樓倒下了', fx: 'rubble', icon: 'building-2',
+              text: '雲門翠堤大樓的低樓層崩塌，整棟大樓嚴重傾斜。大樓1、2樓是「漂亮生活旅店」，住著許多旅客。' },
+            { time: '震後數日', title: '與時間賽跑的搜救', fx: 'siren', icon: 'siren',
+              text: '搜救人員冒著餘震的危險，在傾斜的大樓裡一層一層搜尋受困者。' },
+            { time: '結果', title: '14條人命', fx: 'dark', icon: 'heart-crack',
+              text: '雲門翠堤大樓共14人罹難；這場地震全台共造成17人死亡。' },
+            { time: '調查', title: '被拿掉的牆', fx: 'court', icon: 'search',
+              text: '媒體比對結構圖發現，一樓比四樓短少23面結構牆。檢方調查指出：建商不具營造業資格、欠缺專業，設計、監造與施工都有重大瑕疵。' },
+            { time: '2019/10', title: '一審判決', fx: 'court', icon: 'gavel',
+              text: '花蓮地方法院依過失致死罪，判處建商、建築師、土木技師3人各有期徒刑5年（一審判決）。' },
+        ],
+        sim: [
+            { scene: '深夜11點50分，你正在床上睡覺，突然天搖地動！你的第一個動作是？', fx: 'shake',
+              options: [
+                { text: '馬上衝下樓梯往外跑', correct: false, why: '搖晃中移動很容易跌倒，或被掉落物、玻璃砸傷。' },
+                { text: '趴下、掩護、穩住：在床上就用枕頭護住頭頸，遠離窗戶與可能倒下的家具', correct: true, why: '搖晃時先保護頭頸，是地震避難的第一原則。' },
+                { text: '趕快搭電梯下樓', correct: false, why: '地震時電梯可能停電或故障，會被困在裡面。' },
+              ] },
+            { scene: '大樓傾斜了，你被困在房間裡，門口被堵住，空氣中都是灰塵。你該怎麼做？', fx: 'rubble',
+              options: [
+                { text: '一直大聲呼救，直到有人聽見', correct: false, why: '持續大喊會消耗體力，還會吸入大量粉塵。' },
+                { text: '用衣物摀住口鼻，敲擊水管或牆壁發出規律聲響，保留體力等待救援', correct: true, why: '敲擊聲可以傳得比喊叫遠，又能節省體力。' },
+                { text: '點打火機照明，看清楚環境', correct: false, why: '震後可能有瓦斯外洩，明火可能引發火災或爆炸。' },
+              ] },
+            { scene: '（倒轉時間）如果你是地震前正在找房子的人，下面哪個做法最能降低風險？', fx: 'calm',
+              options: [
+                { text: '只看租金和裝潢漂不漂亮', correct: false, why: '裝潢看不出結構安全。' },
+                { text: '留意一樓是否打掉隔間牆、改成大面積店面或挑高，並查詢建物是否做過耐震評估', correct: true, why: '一樓牆柱被拆改、形成「軟弱層」，是地震時大樓倒塌的重要原因——雲門翠堤一樓就比四樓短少23面結構牆。' },
+                { text: '專挑一樓打掉隔間、空間最大的房子', correct: false, why: '一樓牆被拆越多，大樓越可能在地震中從底部崩塌。' },
+              ] },
+        ]
+    }
+};
+const TABS = ['story', 'sim', 'domino', 'prevention', 'report'];
 
 // ═══════════════════════════════════════════════
 // 4D 迷宮動畫
@@ -485,7 +695,7 @@ let currentRoute = { page: null, tab: null };
 function parseRoute() {
     const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
     if (parts[0] && cases[parts[0]]) {
-        return { page: parts[0], tab: TABS.includes(parts[1]) ? parts[1] : 'domino' };
+        return { page: parts[0], tab: TABS.includes(parts[1]) ? parts[1] : 'story' };
     }
     return { page: 'home', tab: null };
 }
@@ -503,6 +713,7 @@ function router() {
     currentRoute = route;
 
     if (route.page === 'home') {
+        stopStory();
         renderHome();
     } else if (prev.page !== route.page) {
         const render = () => {
@@ -523,13 +734,6 @@ window.addEventListener('hashchange', router);
 // ═══════════════════════════════════════════════
 // 首頁
 // ═══════════════════════════════════════════════
-function caseProgress(caseKey) {
-    const d = state.dominoState[caseKey] || { inputs: {}, revealed: {} };
-    const revealed = Object.values(d.revealed || {}).filter(Boolean).length;
-    const answered = Object.keys(state.quizResults[caseKey] || {}).length;
-    const sub = state.submissions[caseKey];
-    return { revealed, answered, submitted: sub && sub.status === 'done' };
-}
 
 function renderHome() {
     const filled = infoFilled();
@@ -594,9 +798,9 @@ function renderHome() {
     Object.keys(cases).forEach(key => {
         const c = cases[key];
         const p = caseProgress(key);
-        const started = p.revealed || p.answered;
+        const started = p.revealed || p.answered || p.simAnswered || (state.storySeen[key] ?? -1) >= 0;
         html += `
-            <a ${filled ? `href="#/${key}/domino"` : 'href="#/" data-action="need-info"'}
+            <a ${filled ? `href="#/${key}/story"` : 'href="#/" data-action="need-info"'}
                 class="door-card ${filled ? 'open cursor-pointer' : 'cursor-not-allowed opacity-60'} block bg-white p-6 border-2 border-gray-200 rounded-xl shadow-xl">
                 <div class="door-light"></div>
                 <div class="flex items-center mb-4">
@@ -606,6 +810,8 @@ function renderHome() {
                 <p class="text-gray-600 text-sm">${c.summary}</p>
                 ${filled ? `
                 <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                    <span class="px-2 py-1 rounded-full ${p.storyDone ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">故事 ${p.storyDone ? '✓' : '—'}</span>
+                    <span class="px-2 py-1 rounded-full ${p.simAnswered === p.simTotal ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">模擬 ${p.simAnswered}/${p.simTotal}</span>
                     <span class="px-2 py-1 rounded-full ${p.revealed === 5 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">骨牌 ${p.revealed}/5</span>
                     <span class="px-2 py-1 rounded-full ${p.answered === 5 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">配對 ${p.answered}/5</span>
                     ${p.submitted ? '<span class="px-2 py-1 rounded-full bg-green-500 text-white">已送出</span>' : ''}
@@ -650,42 +856,272 @@ function resetStudentInfo() {
 // ═══════════════════════════════════════════════
 // 案例分析頁
 // ═══════════════════════════════════════════════
+function caseProgress(caseKey) {
+    const d = state.dominoState[caseKey] || { inputs: {}, revealed: {} };
+    const revealed = Object.values(d.revealed || {}).filter(Boolean).length;
+    const answered = Object.keys(state.quizResults[caseKey] || {}).length;
+    const sd = storyData[caseKey];
+    const storyDone = (state.storySeen[caseKey] ?? -1) >= sd.chapters.length - 1;
+    const simAnswered = Object.keys(state.simResults[caseKey] || {}).length;
+    const sub = state.submissions[caseKey];
+    return { revealed, answered, storyDone, simAnswered, simTotal: sd.sim.length, submitted: sub && sub.status === 'done' };
+}
+
 function renderCase(caseKey, tab) {
+    stopStory();
     if (!state.quizResults[caseKey]) state.quizResults[caseKey] = {};
     const c = cases[caseKey];
-    const tabCls = (t, color) => t === tab
-        ? `border-${color}-500 text-${color}-600`
-        : `border-transparent text-gray-500 hover:text-${color}-500 hover:border-${color}-300`;
+    const p = caseProgress(caseKey);
+    const steps = [
+        { key: 'story', label: '事故故事', done: p.storyDone },
+        { key: 'sim', label: '現場模擬', done: p.simAnswered === p.simTotal },
+        { key: 'domino', label: '骨牌理論', done: p.revealed === 5 },
+        { key: 'prevention', label: '三段五級', done: p.answered === c.prevention.length },
+        { key: 'report', label: '分析報告', done: p.submitted },
+    ];
+    const isAnalysis = ['domino', 'prevention', 'report'].includes(tab);
 
     contentContainer.innerHTML = `
         <div class="caution-strip"></div>
         <div class="mb-6">
             <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-1 flex items-center">
                 <i data-lucide="${c.icon}" class="w-10 h-10 text-red-500 mr-3 shrink-0"></i>
-                ${c.title}：事故分析學習單
+                ${c.title}
             </h2>
-            <p class="text-lg text-gray-700 font-medium bg-red-50 p-3 rounded-lg border-l-4 border-red-400 mt-4">${c.summary}</p>
+            ${isAnalysis ? `<p class="text-lg text-gray-700 font-medium bg-red-50 p-3 rounded-lg border-l-4 border-red-400 mt-4">${c.summary}</p>` : ''}
         </div>
 
-        <nav class="flex flex-wrap border-b mb-6 gap-1">
-            <a href="#/${caseKey}/domino" class="py-3 px-4 sm:px-6 text-lg font-semibold border-b-4 transition duration-150 ${tabCls('domino', 'red')}">
-                第一部分：骨牌理論
-            </a>
-            <a href="#/${caseKey}/prevention" class="py-3 px-4 sm:px-6 text-lg font-semibold border-b-4 transition duration-150 ${tabCls('prevention', 'red')}">
-                第二部分：三段五級
-            </a>
-            <a href="#/${caseKey}/report" class="py-3 px-4 sm:px-6 text-lg font-semibold border-b-4 transition duration-150 md:ml-auto ${tabCls('report', 'green')}">
-                <i data-lucide="scroll-text" class="w-5 h-5 inline mr-1"></i>
-                生成分析報告 &amp; 送出
-            </a>
+        <nav class="stepper flex flex-wrap border-b mb-6 gap-1">
+            ${steps.map((st, i) => `
+            <a href="#/${caseKey}/${st.key}" class="${st.done ? 'done' : ''} py-3 px-3 sm:px-4 text-base sm:text-lg font-semibold border-b-4 transition duration-150 ${st.key === tab
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-red-500 hover:border-red-300'}">
+                <span class="num">${st.done ? '✓' : i + 1}</span>${st.label}
+            </a>`).join('')}
         </nav>
 
         <div id="analysis-content" class="fade-in"></div>
     `;
 
-    if (tab === 'domino') renderDomino(caseKey);
+    if (tab === 'story') renderStory(caseKey);
+    else if (tab === 'sim') renderSim(caseKey);
+    else if (tab === 'domino') renderDomino(caseKey);
     else if (tab === 'prevention') renderPrevention(caseKey);
     else renderSynthesisReport(caseKey);
+    icons();
+}
+
+// ═══════════════════════════════════════════════
+// 第一步：事故故事（時間線動畫）
+// ═══════════════════════════════════════════════
+const FX_ICON = { calm: 'sun', spin: 'ferris-wheel', spinfast: 'gauge', impact: 'alert-octagon', powder: 'cloud', fire: 'flame',
+    siren: 'siren', hospital: 'hospital', dark: 'heart-crack', court: 'gavel', shake: 'activity', rubble: 'building-2' };
+const story = { caseKey: null, index: 0, playing: false, timer: null, typeTimer: null };
+
+function stopStory() {
+    clearTimeout(story.timer);
+    clearInterval(story.typeTimer);
+    story.playing = false;
+}
+
+function particlesHtml(fx) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    let out = '';
+    if (fx === 'powder') {
+        const colors = ['#f472b6', '#facc15', '#60a5fa', '#34d399', '#c084fc', '#fb923c'];
+        for (let i = 0; i < 34; i++) {
+            const size = rnd(30, 90);
+            out += `<span style="left:${rnd(-5, 95)}%;bottom:${rnd(-10, 40)}%;width:${size}px;height:${size}px;background:${colors[i % colors.length]};filter:blur(${rnd(6, 16)}px);--dx:${rnd(-80, 80)}px;animation:drift ${rnd(3, 6)}s ${rnd(0, 3)}s ease-out infinite"></span>`;
+        }
+    } else if (fx === 'fire') {
+        for (let i = 0; i < 40; i++) {
+            const size = rnd(4, 10);
+            out += `<span style="left:${rnd(0, 100)}%;bottom:${rnd(-5, 20)}%;width:${size}px;height:${size}px;background:${i % 2 ? '#fde047' : '#fb923c'};box-shadow:0 0 8px #f97316;animation:rise ${rnd(1.5, 3.5)}s ${rnd(0, 2)}s linear infinite"></span>`;
+        }
+    } else if (fx === 'rubble' || fx === 'shake') {
+        const n = fx === 'rubble' ? 26 : 12;
+        for (let i = 0; i < n; i++) {
+            const size = rnd(4, 14);
+            out += `<span style="left:${rnd(0, 100)}%;top:0;width:${size}px;height:${size}px;border-radius:2px;background:#a8a29e;animation:fall ${rnd(1.5, 3)}s ${rnd(0, 2.5)}s ease-in infinite"></span>`;
+        }
+    } else if (fx === 'calm' || fx === 'spin') {
+        const colors = ['#fde68a', '#f9a8d4', '#a5f3fc'];
+        for (let i = 0; i < 18; i++) {
+            const size = rnd(3, 7);
+            out += `<span style="left:${rnd(0, 100)}%;bottom:${rnd(0, 30)}%;width:${size}px;height:${size}px;background:${colors[i % 3]};animation:rise ${rnd(4, 8)}s ${rnd(0, 4)}s linear infinite"></span>`;
+        }
+    }
+    return out;
+}
+
+function stageHtml(fx, icon, caption = '') {
+    return `
+        <div class="stage fx-${fx}">
+            <div class="sky"></div>
+            <div class="ground"></div>
+            <div class="particles">${reduceMotion ? '' : particlesHtml(fx)}</div>
+            <div class="hero"><i data-lucide="${icon}"></i></div>
+            ${caption}
+        </div>`;
+}
+
+function renderStory(caseKey) {
+    const sd = storyData[caseKey];
+    if (story.caseKey !== caseKey) { story.caseKey = caseKey; story.index = 0; }
+    const allSeen = (state.storySeen[caseKey] ?? -1) >= sd.chapters.length - 1;
+    document.getElementById('analysis-content').innerHTML = `
+        <h3 class="text-2xl sm:text-3xl font-bold text-gray-700 mb-2 flex items-center">
+            <i data-lucide="film" class="w-8 h-8 mr-3 text-red-500"></i>
+            第一步：事故故事 — 沿著時間線走進現場
+        </h3>
+        <p class="text-gray-600 mb-5">按「▶ 自動播放」或點下方時間點，一幕一幕看事故怎麼發生。</p>
+        ${sd.pending ? `<div class="mb-4 p-3 rounded-lg bg-yellow-100 border border-yellow-400 text-yellow-800 text-sm font-semibold">【請老師確認】本案例的日期、地點與新聞出處尚未查證，以下故事僅依教材摘要改寫。</div>` : ''}
+        <div id="story-stage"></div>
+        <div class="flex flex-wrap items-center justify-center gap-3 mt-4">
+            <button data-action="story-prev" class="px-4 py-2 rounded-full border border-gray-300 hover:bg-gray-100 font-semibold">◀ 上一幕</button>
+            <button id="story-play" data-action="story-play" class="px-5 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white font-bold shadow">▶ 自動播放</button>
+            <button data-action="story-next" class="px-4 py-2 rounded-full border border-gray-300 hover:bg-gray-100 font-semibold">下一幕 ▶</button>
+        </div>
+        <div id="story-timeline" class="timeline"></div>
+        <p class="text-xs text-gray-400 mt-4">${sd.sources}</p>
+        <div id="story-cta" class="${allSeen ? '' : 'hidden'} mt-6 text-center fade-in">
+            <a href="#/${caseKey}/sim" class="inline-flex items-center bg-gray-900 hover:bg-black text-yellow-300 font-bold py-3 px-8 rounded-full shadow-lg">
+                <i data-lucide="gamepad-2" class="w-5 h-5 mr-2"></i>如果你在現場，你會怎麼做？進入現場模擬 →
+            </a>
+        </div>
+    `;
+    showChapter(caseKey, story.index);
+}
+
+function showChapter(caseKey, i) {
+    const sd = storyData[caseKey];
+    const ch = sd.chapters[i];
+    story.index = i;
+    if ((state.storySeen[caseKey] ?? -1) < i) { state.storySeen[caseKey] = i; saveState(false); }
+
+    const stageEl = document.getElementById('story-stage');
+    if (!stageEl) return;
+    stageEl.innerHTML = stageHtml(ch.fx, ch.icon, `
+        <div class="caption">
+            <span class="time">${ch.time}</span>
+            <h4>${ch.title}</h4>
+            <p id="story-text"></p>
+        </div>`);
+    stageEl.firstElementChild.classList.add('chapter-in');
+
+    const tl = document.getElementById('story-timeline');
+    const seen = state.storySeen[caseKey] ?? -1;
+    tl.innerHTML = `<div class="bar" style="width:${sd.chapters.length > 1 ? (i / (sd.chapters.length - 1)) * 100 : 100}%"></div>` +
+        sd.chapters.map((c, k) => `
+            <button data-action="story-go" data-index="${k}" class="${k === i ? 'current' : ''} ${k <= seen ? 'seen' : ''}" title="${c.time}">
+                <span class="dot">${k + 1}</span><span class="label">${c.time}</span>
+            </button>`).join('');
+
+    // 打字機效果
+    clearInterval(story.typeTimer);
+    const textEl = document.getElementById('story-text');
+    if (reduceMotion) { textEl.textContent = ch.text; }
+    else {
+        let n = 0;
+        story.typeTimer = setInterval(() => {
+            n += 1;
+            textEl.textContent = ch.text.slice(0, n);
+            if (n >= ch.text.length) clearInterval(story.typeTimer);
+        }, 45);
+    }
+    if (i === sd.chapters.length - 1) document.getElementById('story-cta')?.classList.remove('hidden');
+    icons();
+
+    clearTimeout(story.timer);
+    if (story.playing) {
+        if (i < sd.chapters.length - 1) story.timer = setTimeout(() => showChapter(caseKey, i + 1), Math.max(6000, ch.text.length * 45 + 3000));
+        else setPlaying(false);
+    }
+}
+
+function setPlaying(on) {
+    story.playing = on;
+    const btn = document.getElementById('story-play');
+    if (btn) btn.textContent = on ? '❚❚ 暫停' : '▶ 自動播放';
+    if (!on) clearTimeout(story.timer);
+}
+
+// ═══════════════════════════════════════════════
+// 第二步：現場模擬（情境決策）
+// ═══════════════════════════════════════════════
+// 選項順序固定打亂（同一題每次順序相同），避免正確答案永遠在同一個位置
+function simOrder(caseKey, si, n) {
+    let seed = 7;
+    for (const ch of `${caseKey}-${si}`) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rand = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed >>> 16) / 65536; };
+    const order = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    return order;
+}
+
+function simItemHtml(caseKey, si) {
+    const q = storyData[caseKey].sim[si];
+    const r = (state.simResults[caseKey] || {})[si];
+    const order = simOrder(caseKey, si, q.options.length);
+    const chosen = r ? q.options[r.choice] : null;
+    const right = q.options.find(o => o.correct);
+    return `
+        ${stageHtml(q.fx, FX_ICON[q.fx] || 'alert-triangle', `
+            <div class="caption"><span class="time">情境 ${si + 1}</span><p class="font-semibold text-white">${q.scene}</p></div>`)}
+        <div class="p-4 sm:p-5 bg-white space-y-3">
+            ${order.map(oi => {
+                const o = q.options[oi];
+                let cls = '';
+                if (r) cls = o.correct ? 'right' : (oi === r.choice ? 'wrong' : 'opacity-60');
+                return `<button data-action="sim" data-case="${caseKey}" data-index="${si}" data-opt="${oi}" ${r ? 'disabled' : ''} class="sim-opt ${cls}">
+                    ${r && o.correct ? '✓ ' : ''}${r && oi === r.choice && !o.correct ? '✗ ' : ''}${o.text}</button>`;
+            }).join('')}
+            ${r ? `
+            <div class="fade-in p-3 rounded-lg ${r.correct ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                <strong>${r.correct ? '做得好！' : '危險！'}</strong>${chosen.why}
+                ${r.correct ? '' : `<div class="mt-2 text-green-800"><strong>正確做法：</strong>${right.text}。${right.why}</div>`}
+            </div>` : ''}
+        </div>`;
+}
+
+function renderSim(caseKey) {
+    const sd = storyData[caseKey];
+    const res = state.simResults[caseKey] || {};
+    const done = Object.keys(res).length;
+    const correct = Object.values(res).filter(r => r.correct).length;
+    document.getElementById('analysis-content').innerHTML = `
+        <h3 class="text-2xl sm:text-3xl font-bold text-gray-700 mb-2 flex items-center">
+            <i data-lucide="gamepad-2" class="w-8 h-8 mr-3 text-red-500"></i>
+            第二步：現場模擬 — 如果你在現場
+        </h3>
+        <p class="text-gray-600 mb-6">每個情境只有一次選擇機會，想清楚再按！</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            ${sd.sim.map((_, si) => `<div id="sim-item-${si}" class="sim-card">${simItemHtml(caseKey, si)}</div>`).join('')}
+        </div>
+        <div id="sim-summary" class="${done === sd.sim.length ? '' : 'hidden'} mt-8 p-5 rounded-xl bg-gray-900 text-white text-center fade-in">
+            <p class="text-lg font-bold mb-3">現場模擬完成：${correct} / ${sd.sim.length} 個情境做出安全的選擇</p>
+            <a href="#/${caseKey}/domino" class="inline-flex items-center bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg">
+                <i data-lucide="dice-5" class="w-5 h-5 mr-2"></i>接下來，用骨牌理論分析這起事故 →
+            </a>
+        </div>
+    `;
+}
+
+function answerSim(caseKey, si, oi) {
+    const res = state.simResults[caseKey] || (state.simResults[caseKey] = {});
+    if (res[si]) return;
+    const q = storyData[caseKey].sim[si];
+    res[si] = { choice: oi, correct: !!q.options[oi].correct };
+    saveState();
+    const el = document.getElementById(`sim-item-${si}`);
+    if (el) {
+        el.innerHTML = simItemHtml(caseKey, si);
+        el.classList.remove('knock'); void el.offsetWidth; el.classList.add('knock');
+    }
+    if (Object.keys(res).length === storyData[caseKey].sim.length) {
+        renderSim(caseKey);
+        document.getElementById('sim-summary')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    }
     icons();
 }
 
@@ -703,7 +1139,7 @@ function renderDomino(caseKey) {
     let html = `
         <h3 class="text-2xl sm:text-3xl font-bold text-gray-700 mb-6 flex items-center">
             <i data-lucide="dice-5" class="w-8 h-8 mr-3 text-red-500"></i>
-            第一部分：骨牌理論 — 尋找導致意外的連續事件
+            第三步：骨牌理論 — 尋找導致意外的連續事件
         </h3>
         <p class="text-gray-600 mb-6 font-medium bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400">
             <strong>學習引導：</strong>請根據案例描述，自主思考每張骨牌代表的關鍵因素，填入反思區後再點擊「查看官方分析」。每看一張，上方的骨牌就會倒下一張。
@@ -836,7 +1272,7 @@ function renderPrevention(caseKey) {
     let html = `
         <h3 class="text-2xl sm:text-3xl font-bold text-gray-700 mb-6 flex items-center">
             <i data-lucide="shield-half" class="w-8 h-8 mr-3 text-green-600"></i>
-            第二部分：三段五級預防 — 評估防護措施的時間點
+            第四步：三段五級預防 — 評估防護措施的時間點
         </h3>
         <p class="text-gray-600 mb-8 font-medium bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400">
             <strong>學習引導：</strong>請將每項措施與它對應的「預防級別」配對。
@@ -899,7 +1335,7 @@ function renderSynthesisReport(caseKey) {
     let feedbackText = '';
     let feedbackClass = '';
     if (!allAnswered) {
-        feedbackText = `你尚未完成第二部分的配對題（已答 ${numAnswered}/${numTotal} 題）。填完後再送出可獲得更完整的回饋！`;
+        feedbackText = `你尚未完成三段五級的配對題（已答 ${numAnswered}/${numTotal} 題）。填完後再送出可獲得更完整的回饋！`;
         feedbackClass = 'bg-blue-100 text-blue-700 border-blue-400';
     } else if (numCorrect === numTotal) {
         feedbackText = `完美！所有配對均正確（${numCorrect}/${numTotal}）。表現出色！`;
@@ -932,6 +1368,32 @@ function renderSynthesisReport(caseKey) {
                 學習回饋
             </h4>
             <p class="text-lg">${feedbackText}</p>
+        </div>
+
+        <h4 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2 flex items-center">
+            <i data-lucide="gamepad-2" class="w-6 h-6 mr-2"></i>現場模擬紀錄
+        </h4>
+        <div class="overflow-x-auto mb-8">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg shadow text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 text-xs">
+                        <th class="py-3 px-4 text-left w-2/5">情境</th>
+                        <th class="py-3 px-4 text-left w-1/2">你的選擇</th>
+                        <th class="py-3 px-4 text-center w-1/12">結果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${storyData[caseKey].sim.map((q, i) => {
+                        const r = (state.simResults[caseKey] || {})[i];
+                        return `
+                        <tr class="border-b ${r ? (r.correct ? 'bg-green-50' : 'bg-red-50') : ''}">
+                            <td class="py-3 px-4">${q.scene}</td>
+                            <td class="py-3 px-4">${r ? q.options[r.choice].text : '<span class="text-gray-400">未作答</span>'}</td>
+                            <td class="py-3 px-4 text-center font-bold ${r && r.correct ? 'text-green-600' : 'text-red-600'}">${r ? (r.correct ? '✓' : '✗') : '—'}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
         </div>
 
         <h4 class="text-2xl font-bold text-red-600 mb-4 border-b pb-2 flex items-center">
@@ -1172,10 +1634,16 @@ function downloadRecord(caseKey) {
         `案例：${d.case_title}`,
         `下載時間：${new Date().toLocaleString('zh-TW')}`,
         '',
-        '【第一部分：骨牌理論】',
+        '【現場模擬】',
+        ...storyData[caseKey].sim.map((q, i) => {
+            const r = (state.simResults[caseKey] || {})[i];
+            return `${i + 1}. ${q.scene}\n   我的選擇：${r ? q.options[r.choice].text : '未作答'}　${r ? (r.correct ? '✓' : '✗') : '—'}`;
+        }),
+        '',
+        '【骨牌理論】',
         ...c.domino.map((dm, i) => `${i + 1}. ${dm.name}\n   我的分析：${d.domino_inputs[i] || '（未填寫）'}\n   官方分析：${dm.factor}`),
         '',
-        `【第二部分：三段五級】得分 ${d.score}/${d.total}`,
+        `【三段五級】得分 ${d.score}/${d.total}`,
         ...c.prevention.map((p, i) => {
             const r = d.prevention_results[i];
             return `${i + 1}. ${p.action}\n   我的選擇：${r ? r.selected : '未作答'}　正確級別：${p.level}　${r ? (r.isCorrect ? '✓' : '✗') : '—'}`;
@@ -1204,6 +1672,17 @@ document.addEventListener('click', e => {
     switch (action) {
         case 'need-info': e.preventDefault(); toast('請先填寫班級、座號、姓名！'); document.getElementById('input-class')?.focus(); break;
         case 'reveal': revealDominoAnswer(ck, Number(index)); break;
+        case 'sim': answerSim(ck, Number(index), Number(opt)); break;
+        case 'story-go': setPlaying(false); showChapter(story.caseKey, Number(index)); break;
+        case 'story-prev': setPlaying(false); if (story.index > 0) showChapter(story.caseKey, story.index - 1); break;
+        case 'story-next': setPlaying(false); if (story.index < storyData[story.caseKey].chapters.length - 1) showChapter(story.caseKey, story.index + 1); break;
+        case 'story-play': {
+            const last = storyData[story.caseKey].chapters.length - 1;
+            if (story.playing) { setPlaying(false); break; }
+            setPlaying(true);
+            showChapter(story.caseKey, story.index >= last ? 0 : story.index);
+            break;
+        }
         case 'answer': checkPreventionAnswer(ck, Number(index), Number(opt)); break;
         case 'submit': submitToBackend(ck); break;
         case 'resubmit':

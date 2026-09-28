@@ -147,11 +147,11 @@ let quality = (() => {
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.9;
+renderer.toneMappingExposure = 0.8;
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 6000);
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.6, 0.82);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.3, 3.2); // 門檻設高：只讓燈光發光，不讓天空泛白
 composer.addPass(renderPass);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
@@ -373,7 +373,7 @@ function buildRiver() {
     // 燈柱（會發光）
     const nL = Math.floor(L / 26);
     const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .3, 3.2, 6), stoneDark, nL * 2);
-    const lamps = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.55), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff1d0, emissiveIntensity: 3 }), nL * 2);
+    const lamps = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.55), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff1d0, emissiveIntensity: 6 }), nL * 2);
     const m4 = new THREE.Matrix4();
     for (let i = 0; i < nL; i++) for (const [k, side] of [[0, -1], [1, 1]]) {
         const z = 40 - i * 26;

@@ -163,6 +163,7 @@
             animation: doorIn .8s cubic-bezier(.2,.8,.2,1) backwards; overflow: hidden; }
         .door-card:nth-child(2) { animation-delay: .12s; }
         .door-card:nth-child(3) { animation-delay: .24s; }
+        .door-card:nth-child(4) { animation-delay: .36s; }
         @keyframes doorIn { from { opacity: 0; transform: translateZ(-400px) rotateY(-25deg); } to { opacity: 1; transform: none; } }
         .door-card.open:hover { transform: translateZ(40px) rotateY(-6deg) rotateX(3deg); box-shadow: 0 25px 50px rgba(239,68,68,.35); }
         .door-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
@@ -450,27 +451,9 @@ function toast(msg) {
 // 案例資料庫
 // ═══════════════════════════════════════════════
 const cases = {
-    'case1': {
-        title: '購物中心旋轉鞦韆意外',
-        icon: 'ferris-wheel',
-        summary: '【樂園驚魂：人為疏失鑄大錯】某假日，購物中心歡樂設施突變煉獄！一名3歲男童因工作人員誤觸加速旋鈕，瞬間被拋出重摔在地，頭部嚴重撕裂。事件更波及3名試圖營救的成人，暴露出設施操作規範與員工訓練的重大漏洞。',
-        domino: [
-            { name: '環境因素 (社會/技術)', factor: '設備操作面板設計缺陷，轉速鈕易被誤觸。', color: 'bg-gray-100' },
-            { name: '人為疏失 (不當行為)', factor: '工作人員訓練不足、注意力不集中、操作流程不當。', color: 'bg-yellow-100' },
-            { name: '危險因素 (不安全狀態)', factor: '鞦韆高速運轉失控；幼童安全帶脫落。', color: 'bg-orange-100' },
-            { name: '意外事故 (立即事件)', factor: '男童從座椅上跌落，頭部撞擊；救援者遭高速鞦韆掃傷。', color: 'bg-red-100' },
-            { name: '損失 (後果)', factor: '男童頭部縫8針；3名成人受傷；營運商譽損失。', color: 'bg-slate-100' },
-        ],
-        prevention: [
-            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '制定嚴格的設施操作SOP；在設備周圍設置隔離區。', tag: 'stage-1' },
-            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '工作人員定期進行模擬訓練與考核；設備加裝防誤觸安全蓋；定期檢修安全帶。', tag: 'stage-1' },
-            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '立即按下緊急停止鈕；對男童頭部外傷進行止血與初步包紮；立即撥打119。', tag: 'stage-2' },
-            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '迅速將傷者送醫，由專業醫護人員處理傷口與檢查，防止感染與併發症。', tag: 'stage-3' },
-            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供傷者及其家屬心理創傷輔導；檢討並修訂遊樂設施管理規範。', tag: 'stage-3' },
-        ]
-    },
     'case2': {
         title: '彩色派對粉塵爆炸事故',
+        year: '2015',
         icon: 'flame',
         summary: '【世紀悲劇：粉塵地獄】數百名年輕人夢寐以求的彩色派對，因舞台區噴灑的高濃度玉米澱粉塵遇熱源瞬間引爆！烈焰吞噬全場，造成15人死亡、逾480人全身大面積燒燙傷。這場人為疏失，凸顯了大型活動安全審核機制全面失靈的慘痛代價。',
         domino: [
@@ -490,6 +473,7 @@ const cases = {
     },
     'case3': {
         title: '花蓮震災大樓倒塌事故',
+        year: '2018',
         icon: 'hammer',
         summary: '【天災背後的人禍】花蓮強震，位於斷層帶上的某電梯大樓竟在短短8秒內崩解！調查揭露，建案負責人缺乏土木專業資格，且施工過程有嚴重結構瑕疵。這不是單純的天災，而是無良建商與制度漏洞聯手造成的14條人命悲劇。',
         domino: [
@@ -506,6 +490,46 @@ const cases = {
             { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '對獲救傷者進行創傷醫學處理，預防擠壓傷併發症。', tag: 'stage-3' },
             { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供災民與家屬長期心理輔導；從重追訴非法建商，全面改革建築法規。', tag: 'stage-3' },
         ]
+    },
+    'puyuma': {
+        title: '普悠瑪列車出軌事故',
+        year: '2018',
+        icon: 'train-track',
+        summary: '【被關掉的安全系統】2018年10月21日，台鐵6432次普悠瑪列車在宜蘭新馬站，以約每小時140公里的速度衝進限速75公里的彎道，出軌翻覆，造成18人死亡、215人受傷。調查揭露：故障的列車仍在載客、列車自動防護系統（ATP）被關閉，背後是台鐵長期的維修與管理問題。',
+        domino: [
+            { name: '環境因素 (組織/設備)', factor: '台鐵維修延宕，列車主風泵故障仍上線載客；作業手冊與程序不完整，訓練與考核制度不足。', color: 'bg-gray-100' },
+            { name: '人為疏失 (違規操作)', factor: '司機員把主風泵故障誤判為ATP問題，違規隔離ATP後繼續行駛；故障未依規定通報與處置。', color: 'bg-yellow-100' },
+            { name: '危險因素 (不安全狀態)', factor: '列車失去ATP的自動超速防護，以約140 km/h接近限速75 km/h的彎道。', color: 'bg-orange-100' },
+            { name: '意外事故 (立即事件)', factor: '列車在新馬站彎道出軌翻覆。', color: 'bg-red-100' },
+            { name: '損失 (後果)', factor: '18人死亡、215人受傷；損失及賠償逾9.58億元，社會對鐵道安全信心重挫。', color: 'bg-slate-100' },
+        ],
+        prevention: [
+            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '建立「異常就停、故障就報」的安全文化；加強員工與旅客的鐵道安全教育。', tag: 'stage-1' },
+            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '確實維修保養列車；ATP不得任意隔離並建立監控機制；完善作業手冊並落實訓練考核。', tag: 'stage-1' },
+            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '立即通報並攔停鄰線列車；現場進行檢傷分類與緊急救護，迅速後送傷患。', tag: 'stage-2' },
+            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '傷者送醫接受外科手術與加護照護，預防併發症、降低永久失能。', tag: 'stage-3' },
+            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供傷者身心復健與心理輔導；依運安會改善建議，改革台鐵組織、維修與訓練制度。', tag: 'stage-3' },
+        ]
+    },
+    'taroko': {
+        title: '太魯閣號清水隧道事故',
+        year: '2021',
+        icon: 'train-front',
+        summary: '【49條人命的連鎖失誤】2021年4月2日清明連假首日，台鐵408次太魯閣號在花蓮清水隧道北口，撞上從施工便道邊坡滑落到軌道上的大貨車，8節車廂全部出軌，造成49人死亡、213人受傷，是台鐵近60年來最嚴重的事故。',
+        domino: [
+            { name: '環境因素 (工程/地形)', factor: '邊坡工地緊鄰隧道口與軌道；施工便道未依設計鋪設瀝青混凝土，邊坡缺乏適當安全防護；台鐵臨軌工程安全規定不足。', color: 'bg-gray-100' },
+            { name: '人為疏失 (違規/判斷錯誤)', factor: '工地主任於連假停工期間違規進入工地；大貨車熄火無法發動後，未找維修業者，而用吊帶連接挖掘機拖移。', color: 'bg-yellow-100' },
+            { name: '危險因素 (不安全狀態)', factor: '大貨車從施工便道邊坡滑落，停在列車行駛的軌道上。', color: 'bg-orange-100' },
+            { name: '意外事故 (立即事件)', factor: '408次列車駛近清水隧道北口時撞上大貨車，8節車廂全部出軌。', color: 'bg-red-100' },
+            { name: '損失 (後果)', factor: '49人死亡（含2名司機員）、213人受傷；北迴線中斷，社會對鐵道安全信心受創。', color: 'bg-slate-100' },
+        ],
+        prevention: [
+            { stage: '第一段：事故前預防', level: '一級：促進健康', action: '加強臨軌施工人員的工安教育與法規宣導；推動重視安全的組織文化。', tag: 'stage-1' },
+            { stage: '第一段：事故前預防', level: '二級：特殊保護', action: '臨軌工地設置邊坡防護設施、落實工地出入管制；車輛故障交由專業業者處理並通報台鐵。', tag: 'stage-1' },
+            { stage: '第二段：事故發生時', level: '三級：早期診斷與治療', action: '乘客依車長指示疏散；救難人員進行檢傷分類，優先救治重傷者並迅速後送。', tag: 'stage-2' },
+            { stage: '第三段：事故發生後處置', level: '四級：限制失能', action: '傷者送醫接受骨折、創傷手術與加護治療，預防併發症與永久失能。', tag: 'stage-3' },
+            { stage: '第三段：事故發生後處置', level: '五級：復健', action: '提供傷者身心復健與家屬心理輔導；依運安會建議檢討臨軌工程規定與站票政策。', tag: 'stage-3' },
+        ]
     }
 };
 const ALL_LEVELS = ['一級：促進健康', '二級：特殊保護', '三級：早期診斷與治療', '四級：限制失能', '五級：復健'];
@@ -514,47 +538,6 @@ const ALL_LEVELS = ['一級：促進健康', '二級：特殊保護', '三級：
 // fx：場景動畫效果（calm/spin/spinfast/impact/powder/fire/siren/hospital/dark/court/shake/rubble）
 // ═══════════════════════════════════════════════
 const storyData = {
-    'case1': {
-        sources: '資料來源：三立新聞網報導（https://www.setn.com/news/364288）。',
-        chapters: [
-            { time: '某個假日', title: '百貨裡的遊戲攤位', fx: 'spin', icon: 'ferris-wheel',
-              text: '新竹巨城購物中心裡，擺著一座簡易的旋轉鞦韆遊戲攤位。一名3歲男童坐了上去。' },
-            { time: '意外前幾秒', title: '被誤觸的加速旋鈕', fx: 'spinfast', icon: 'gauge',
-              text: '操作人員誤觸了控制面板上的加速旋鈕，鞦韆轉速突然越來越快。' },
-            { time: '意外瞬間', title: '男童被甩出', fx: 'impact', icon: 'alert-octagon',
-              text: '高速旋轉下，男童從座椅上被甩出，頭部重摔在地。' },
-            { time: '救援時', title: '救人的人也受傷了', fx: 'siren', icon: 'users',
-              text: '3名成人衝上前想救援，卻在鞦韆還沒停下時，被高速轉動的鞦韆掃傷。' },
-            { time: '事後', title: '縫了8針的教訓', fx: 'hospital', icon: 'hospital',
-              text: '男童頭部縫8針，3名成人受傷。事件暴露出設施操作規範與員工訓練的重大漏洞。' },
-        ],
-        sim: [
-            { scene: '逛百貨時，孩子吵著要玩一座臨時擺攤的簡易旋轉鞦韆。讓孩子坐上去之前，你最該先確認什麼？', fx: 'spin',
-              options: [
-                { text: '價錢划不划算、能玩幾分鐘', correct: false, why: '價錢和安全無關，先看設備和人員。' },
-                { text: '安全帶是否完好並確實扣上、座椅適不適合孩子的身形，以及有沒有工作人員全程守在控制台旁', correct: true, why: '簡易設施更要自己把關：安全帶、適用年齡身形、專人看顧，缺一項就不要玩。' },
-                { text: '只要其他小朋友都在玩，應該就安全', correct: false, why: '「大家都在玩」不代表設施安全，這是常見的從眾迷思。' },
-              ] },
-            { scene: '你是在旁邊的家長。鞦韆突然越轉越快，你看到孩子快抓不住了！你第一個動作是？', fx: 'spinfast',
-              options: [
-                { text: '立刻衝進去抓住鞦韆', correct: false, why: '高速運轉的設備會把靠近的人掃傷——本案3名想救人的成人就是這樣受傷的。' },
-                { text: '大聲要求操作員立刻按下緊急停止鈕，確認設備完全停止', correct: true, why: '先讓危險源停止，才能安全救人。「先確保自身安全，再救人」是救援第一原則。' },
-                { text: '先拿手機錄影存證', correct: false, why: '存證不是第一優先，分秒必爭的是讓設備停下來。' },
-              ] },
-            { scene: '鞦韆停了。男童摔在地上，頭部流血、一直哭。你該怎麼處理？', fx: 'impact',
-              options: [
-                { text: '趕快把他抱起來搖一搖，確認他有沒有意識', correct: false, why: '頭部撞擊可能合併頸椎受傷，不可任意搬動或搖晃。' },
-                { text: '讓他保持不動，用乾淨紗布或布直接加壓止血，同時請旁人撥打119', correct: true, why: '直接加壓是最有效的止血法；保持不動可避免可能的頸椎傷害惡化。' },
-                { text: '用衛生紙沾水把傷口擦乾淨，再塗上藥膏', correct: false, why: '開放性頭部傷口應先加壓止血並送醫，由醫療人員清創縫合。' },
-              ] },
-            { scene: '男童縫合後回家。接下來24小時，照顧者最需要注意什麼？', fx: 'hospital',
-              options: [
-                { text: '傷口縫好就沒事了，不用特別觀察', correct: false, why: '頭部外傷後可能出現延遲性的顱內出血，需要持續觀察。' },
-                { text: '觀察是否出現嗜睡叫不醒、持續嘔吐、劇烈頭痛或抽搐，一出現就立刻回診', correct: true, why: '這些都是顱內傷害的警訊，必須立即就醫。' },
-                { text: '頭痛就先吃成藥壓下來，不必回診', correct: false, why: '止痛藥可能掩蓋警訊，頭痛加劇應回診而不是自行服藥。' },
-              ] },
-        ]
-    },
     'case2': {
         sources: '資料來源：衛生福利部「八仙樂園粉塵暴燃專區」、中央社、中時新聞網、遠見雜誌等報導。',
         chapters: [
@@ -634,6 +617,98 @@ const storyData = {
                 { text: '專挑一樓打掉隔間、空間最大的房子', correct: false, why: '一樓牆被拆越多，大樓越可能在地震中從底部崩塌。' },
               ] },
         ]
+    },
+    'puyuma': {
+        sources: '資料來源：國家運輸安全調查委員會調查報告、監察院糾正案、中央社、聯合新聞網等報導。',
+        chapters: [
+            { time: '2018/10/21 下午', title: '週日的返鄉列車', fx: 'calm', icon: 'train-track',
+              text: '週日下午，台鐵6432次普悠瑪列車從樹林站開往台東，車上共有366人。' },
+            { time: '行駛途中', title: '故障的列車', fx: 'impact', icon: 'gauge',
+              text: '列車的主風泵出現故障，動力一再中斷。司機員誤以為是ATP出問題，在16:17將ATP隔離，列車從此失去自動超速防護。' },
+            { time: '約 16:50', title: '衝進彎道', fx: 'spinfast', icon: 'gauge',
+              text: '列車以約每小時140公里的速度，衝進限速75公里的新馬站彎道。' },
+            { time: '翻覆瞬間', title: '列車出軌', fx: 'impact', icon: 'alert-octagon',
+              text: '第1節車廂右側車輪浮起，列車出軌並向左傾覆。' },
+            { time: '結果', title: '18條人命', fx: 'dark', icon: 'heart-crack',
+              text: '事故造成18人死亡、215人受傷。' },
+            { time: '2020/10', title: '調查結果', fx: 'court', icon: 'search',
+              text: '運安會指出：故障列車仍上線載客、手冊與訓練不足、管理規定未落實，導致ATP被違規隔離與超速，並提出27項改善建議。監察院也糾正交通部與台鐵。' },
+            { time: '2023 年', title: '判決', fx: 'court', icon: 'gavel',
+              text: '司機員因業務過失致死，判刑4年6個月定讞。' },
+        ],
+        sim: [
+            { scene: '你是司機員：列車動力一再中斷、儀表出現警示，你不確定是哪裡故障。你會怎麼做？', fx: 'impact',
+              options: [
+                { text: '先把ATP關掉，開到終點再說', correct: false, why: '關掉ATP就失去自動超速防護——本案正是這樣釀成大禍。' },
+                { text: '依標準程序向行控中心與車長通報，依指示處理；安全系統異常時必須降速或停車等待處置', correct: true, why: '「異常就報、不確定就停」，安全系統是最後一道防線，不能自己拿掉。' },
+                { text: '加速把延誤的時間追回來', correct: false, why: '趕時間是很多重大事故的共同原因，準點永遠不能比安全重要。' },
+              ] },
+            { scene: '你是乘客，列車過彎時快到讓人站不穩、行李晃動。你可以怎麼保護自己？', fx: 'spinfast',
+              options: [
+                { text: '站起來拿手機錄影', correct: false, why: '站著最容易在急彎或急煞時摔倒受傷。' },
+                { text: '立刻坐好、抓穩扶手或椅背，遠離車門與車廂連接處，並告知車長或服務人員', correct: true, why: '坐穩、抓牢能降低受傷；把異常告訴車上人員，也可能讓問題及早被處理。' },
+                { text: '走到車廂連接處看看發生什麼事', correct: false, why: '車廂連接處是事故時最危險的位置之一。' },
+              ] },
+            { scene: '列車翻覆後車廂側躺，四周一片混亂。你怎麼逃生？', fx: 'rubble',
+              options: [
+                { text: '先找回手機和行李再離開', correct: false, why: '分秒必爭，財物可以再買，生命不能重來。' },
+                { text: '確認周圍危險，聽從車長或救難人員指示，從朝上的車門或以車窗擊破器破窗逃出，並協助身旁的人', correct: true, why: '先觀察再行動，依指示有秩序撤離，並互相幫助。' },
+                { text: '一出車廂就在軌道上奔跑離開', correct: false, why: '鄰線可能仍有列車通過，軌道上也有電力與碎片等危險。' },
+              ] },
+            { scene: '如果你是事後的台鐵主管，你會怎麼避免悲劇重演？', fx: 'court',
+              options: [
+                { text: '把責任都歸給司機員就好', correct: false, why: '運安會指出維修、訓練、程序與管理都有問題，只處罰個人無法阻止下一次事故。' },
+                { text: '從維修保養、作業程序、訓練考核與安全文化全面改善，並讓ATP無法被任意隔離', correct: true, why: '這就是抽掉「環境因素」這張骨牌——從根本改變組織。' },
+                { text: '只要加重罰則，員工自然會小心', correct: false, why: '罰則不能取代完善的制度、設備與訓練。' },
+              ] },
+        ]
+    },
+    'taroko': {
+        sources: '資料來源：國家運輸安全調查委員會調查報告、報導者、中央社、聯合新聞網等報導（司法進度截至2026年4月）。',
+        chapters: [
+            { time: '2021/04/02 早上', title: '清明連假第一天', fx: 'calm', icon: 'train-front',
+              text: '清明連假第一天，台鐵408次太魯閣號從樹林站開往台東，車上載著498人，也有買站票的旅客。' },
+            { time: '事故前', title: '連假中的工地', fx: 'dark', icon: 'construction',
+              text: '清水隧道北口上方的邊坡工地正值連假停工，工地主任卻帶著移工違規進入工地。' },
+            { time: '事故前不久', title: '滑下邊坡的大貨車', fx: 'rubble', icon: 'truck',
+              text: '大貨車在施工便道的斜坡上熄火、無法再發動。工地主任沒有找維修業者，而是用吊帶連接挖掘機拖移——大貨車滑下邊坡，停在軌道上。' },
+            { time: '約 09:28', title: '撞擊', fx: 'impact', icon: 'train-front',
+              text: '列車駛近清水隧道北口，撞上軌道上的大貨車，8節車廂全部出軌。' },
+            { time: '救援', title: '黑暗隧道裡的救援', fx: 'siren', icon: 'siren',
+              text: '隧道內漆黑狹窄，乘客互相扶持逃出車廂，救難人員進入隧道搶救傷者。' },
+            { time: '結果', title: '49條人命', fx: 'dark', icon: 'heart-crack',
+              text: '49人死亡（包括2名司機員），213人受傷，是台鐵近60年來最嚴重的事故。' },
+            { time: '2022/05', title: '調查報告', fx: 'court', icon: 'search',
+              text: '運安會指出多項肇因，包括違規施工、便道與邊坡缺乏防護、台鐵臨軌工程安全規定不足；也發現站票乘客的罹難率是坐票的7倍。' },
+            { time: '司法進度', title: '尚未結束的審判', fx: 'court', icon: 'gavel',
+              text: '肇事包商的妨害投標罪判刑10個月定讞；過失致死等其他罪名，最高法院已發回更審，司法程序仍在進行（截至2026年4月）。' },
+        ],
+        sim: [
+            { scene: '你是工地負責人：連假期間，大貨車在緊鄰軌道的便道斜坡上熄火、發不動了。你該怎麼做？', fx: 'rubble',
+              options: [
+                { text: '用吊帶綁在挖掘機上硬拖', correct: false, why: '本案大貨車就是這樣滑落到軌道上。' },
+                { text: '先固定車輛，立即通報台鐵（車站或行控中心）請求注意或攔停列車，並找專業維修業者處理', correct: true, why: '臨軌作業出狀況，第一件事是讓列車知道危險，再由專業的人處理故障車輛。' },
+                { text: '先放著，等連假結束再處理', correct: false, why: '車輛可能滑落，而且沒有人知道軌道旁有危險。' },
+              ] },
+            { scene: '你在列車上，一陣劇烈撞擊後列車停下，車廂傾斜、燈光昏暗。你第一步怎麼做？', fx: 'impact',
+              options: [
+                { text: '馬上打開車門跳到軌道上', correct: false, why: '隧道內與鄰線可能仍有危險，貿然跳下容易再受傷。' },
+                { text: '先確認自己和身邊的人傷勢，聽從車長或廣播指示，依緊急逃生指引有秩序疏散', correct: true, why: '先穩住、再撤離，才能避免混亂中的二次傷害。' },
+                { text: '先到行李架拿行李', correct: false, why: '分秒必爭，財物可以再買，生命不能重來。' },
+              ] },
+            { scene: '撤出車廂後，你在漆黑的隧道裡。接下來怎麼做？', fx: 'dark',
+              options: [
+                { text: '在軌道中間坐下休息', correct: false, why: '軌道上仍可能有危險，也會妨礙救援。' },
+                { text: '用手機照明，沿著隧道壁往出口或救難人員的方向移動，注意腳下，並協助受傷的人', correct: true, why: '沿壁移動較安全，也方便救難人員找到你。' },
+                { text: '大家一起擠回車廂裡', correct: false, why: '出軌的車廂結構可能不穩，擠回去更危險。' },
+              ] },
+            { scene: '連假買票只剩站票。運安會發現站票乘客罹難率是坐票的7倍，站在車廂間通道與玄關的人生還機率更低。如果只能站，你會站哪裡？', fx: 'calm',
+              options: [
+                { text: '車廂連接處的通道，方便下車', correct: false, why: '這正是運安會指出生還機率最低的位置。' },
+                { text: '盡量待在車廂內，抓穩扶手或椅背，遠離車廂連接處與車門', correct: true, why: '車廂內有座椅與扶手可以依靠，撞擊時較有保護。' },
+                { text: '坐在車門邊的行李上', correct: false, why: '車門與玄關附近在撞擊時特別危險。' },
+              ] },
+        ]
     }
 };
 const TABS = ['story', 'sim', 'domino', 'prevention', 'report'];
@@ -691,7 +766,7 @@ async function playTransit(caseKey, renderFn) {
 }
 
 // ═══════════════════════════════════════════════
-// 路由：用網址 #/case1/prevention 記住位置
+// 路由：用網址 #/taroko/prevention 記住位置
 //  → 上一頁/下一頁可用、重新整理不會跳回首頁
 // ═══════════════════════════════════════════════
 let currentRoute = { page: null, tab: null };
@@ -796,7 +871,7 @@ function renderHome() {
 
     html += `
         <h3 class="text-2xl font-semibold text-red-500 mb-6 border-b-2 border-red-200 pb-2">選擇一扇門，走進事故現場</h3>
-        <div class="door-grid grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="door-grid grid grid-cols-1 md:grid-cols-2 gap-6">
     `;
 
     Object.keys(cases).forEach(key => {
@@ -809,7 +884,10 @@ function renderHome() {
                 <div class="door-light"></div>
                 <div class="flex items-center mb-4">
                     <i data-lucide="${c.icon}" class="w-10 h-10 text-red-500 mr-4 shrink-0"></i>
-                    <h4 class="text-xl font-bold text-gray-800">${c.title}</h4>
+                    <div>
+                        <span class="text-xs font-bold text-red-500 tracking-widest">${c.year}</span>
+                        <h4 class="text-xl font-bold text-gray-800">${c.title}</h4>
+                    </div>
                 </div>
                 <p class="text-gray-600 text-sm">${c.summary}</p>
                 ${filled ? `

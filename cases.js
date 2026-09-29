@@ -382,4 +382,17 @@ const watchTimer = {
         if (t === '1') localStorage.setItem('sg_teacher', '1');
         if (t === '0') localStorage.removeItem('sg_teacher');
     } catch (_) {}
+    // 老師模式開啟時，畫面左下角固定顯示標籤，避免在公用電腦上忘了關閉
+    function badge() {
+        if (!watchLog.teacher() || document.getElementById('teacher-badge')) return;
+        const el = document.createElement('div');
+        el.id = 'teacher-badge';
+        el.setAttribute('style', 'position:fixed;left:12px;bottom:12px;z-index:9999;display:flex;align-items:center;gap:8px;' +
+            'padding:6px 12px;border-radius:9999px;background:#1e3a8a;color:#fff;font:600 13px/1.4 sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.35)');
+        el.innerHTML = '🎓 老師模式（不受觀看限制）<button type="button" style="border:0;border-radius:9999px;padding:2px 10px;' +
+            'background:#fff;color:#1e3a8a;font:600 12px sans-serif;cursor:pointer">關閉</button>';
+        el.querySelector('button').onclick = () => { try { localStorage.removeItem('sg_teacher'); } catch (_) {} location.replace(location.pathname + location.hash); };   // 去掉網址中的 ?teacher=1，避免重新開啟
+        document.body.appendChild(el);
+    }
+    if (document.body) badge(); else document.addEventListener('DOMContentLoaded', badge);
 })();

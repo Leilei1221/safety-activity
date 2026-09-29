@@ -1218,7 +1218,23 @@ function buildPayload(caseKey) {
         domino_inputs: dominoInputs,
         prevention_results: results,
         score: Object.values(results).filter(r => r.isCorrect).length,
-        total: c.prevention.length
+        total: c.prevention.length,
+        // 以下為新版欄位（舊版後台會自動忽略）
+        case_key: caseKey,
+        ...simSummary(caseKey),
+        watch_text: watchLog.text(caseKey)
+    };
+}
+
+function simSummary(caseKey) {
+    const qs = storyData[caseKey].sim, res = state.simResults[caseKey] || {};
+    return {
+        sim_score: Object.values(res).filter(r => r.correct).length,
+        sim_total: qs.length,
+        sim_text: qs.map((q, i) => {
+            const r = res[i];
+            return `情境${i + 1}：${r ? q.options[r.choice].text + (r.correct ? ' ✓' : ' ✗') : '未作答'}`;
+        }).join('\n')
     };
 }
 
@@ -1401,7 +1417,7 @@ function renderSubmitPanel(caseKey) {
                     <p class="text-gray-800 leading-relaxed text-base whitespace-pre-wrap">${esc(sub.feedback)}</p>
                     <div class="mt-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm flex items-center">
                         <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
-                        學習記錄已成功儲存為 Word 檔！
+                        學習記錄已成功送出！
                     </div>
                     <div class="mt-4 flex flex-wrap gap-3">
                         ${downloadBtn}
@@ -1413,7 +1429,7 @@ function renderSubmitPanel(caseKey) {
             html = `
                 <div class="bg-red-100 text-red-700 p-4 rounded-lg mb-4">
                     <strong>回饋生成失敗：</strong>${esc(sub.error || '未知錯誤')}<br>
-                    <small>Word 檔可能已儲存，請洽老師確認。</small>
+                    <small>記錄可能已經送出，請洽老師確認。</small>
                 </div>
                 <div class="flex flex-wrap gap-3">${submitBtn('再送一次')}${downloadBtn}</div>`;
             break;
@@ -1438,7 +1454,7 @@ function renderSubmitPanel(caseKey) {
         default:
             html = `
                 <div class="flex flex-wrap gap-3 items-center">${submitBtn('送出學習記錄並獲得回饋')}</div>
-                <p class="text-xs text-gray-400 mt-2">送出後將生成學習回饋，並將你的學習記錄存為 Word 檔。</p>`;
+                <p class="text-xs text-gray-400 mt-2">送出後會產生學習回饋，並把你的學習記錄交給老師。</p>`;
     }
     el.innerHTML = html;
     icons();
@@ -1458,20 +1474,32 @@ async function submitToBackend(caseKey) {
     renderSubmitPanel(caseKey);
 
     try {
+        const url = getBackendUrl();
+        // Google Apps Script 後台：直接回傳回饋，不需要輪詢
+        const isAppsScript = /script\.google(usercontent)?\.com/.test(url);
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 20000);
+        const timer = setTimeout(() => controller.abort(), isAppsScript ? 60000 : 20000);
         let res;
         try {
-            res = await fetch(`${getBackendUrl()}/api/submit`, {
+            res = await fetch(isAppsScript ? url : `${url}/api/submit`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // Apps Script 用 text/plain 送出，才不會被瀏覽器的跨網域檢查擋下
+                headers: { 'Content-Type': isAppsScript ? 'text/plain;charset=utf-8' : 'application/json' },
                 body: JSON.stringify(data),
                 signal: controller.signal
             });
         } finally { clearTimeout(timer); }
 
         if (!res.ok) throw new Error(`伺服器錯誤 ${res.status}`);
-        const { id } = await res.json();
+        const json = await res.json();
+        if (isAppsScript) {
+            if (json.status !== 'done') throw new Error(json.error || '後台處理失敗');
+            state.submissions[caseKey] = { status: 'done', id: json.id, feedback: json.feedback || '', submittedAt: Date.now() };
+            saveState();
+            renderSubmitPanel(caseKey);
+            return;
+        }
+        const { id } = json;
         if (!id) throw new Error('伺服器沒有回傳記錄編號');
 
         state.submissions[caseKey] = { status: 'pending', id, submittedAt: Date.now() };

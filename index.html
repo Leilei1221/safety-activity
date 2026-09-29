@@ -353,11 +353,11 @@
 // ═══════════════════════════════════════════════
 // 設定：後端 URL
 // ═══════════════════════════════════════════════
-// 預設後端網址（Cloudflare 臨時 Tunnel 每次重開都會換網址）。
-// 不想每次改程式碼的話，可以直接發給學生這種連結：
-//   https://leilei1221.github.io/safety-activity/?api=https://xxxx.trycloudflare.com
-// 網址會被記在學生的瀏覽器裡，之後就算重新整理也會沿用。
-const DEFAULT_BACKEND_URL = "https://reported-amy-starts-sri.trycloudflare.com";
+// 預設後端網址：Google Apps Script 網頁應用程式（網址固定，不需要開電腦）
+// 若要臨時改用其他後台，可以發給學生這種連結：
+//   https://leilei1221.github.io/safety-activity/?api=其他後台網址
+// 網址會被記在學生的瀏覽器裡；加上 ?api=default 可以恢復成預設後台。
+const DEFAULT_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxzTzhMLAL2On_O4YRnIYhvFBvH65B8Af9GUUM6LOLKkrp_PmjtrxqojaBYd_LtUNqNTg/exec";
 
 function getBackendUrl() {
     return (safeGet('sg_backend_url') || DEFAULT_BACKEND_URL).replace(/\/+$/, '');
@@ -365,6 +365,7 @@ function getBackendUrl() {
 (function captureBackendFromQuery() {
     const api = new URLSearchParams(location.search).get('api');
     if (api && /^https?:\/\//.test(api)) safeSet('sg_backend_url', api);
+    if (api === 'default') { try { localStorage.removeItem('sg_backend_url'); } catch (_) {} }
 })();
 
 // ═══════════════════════════════════════════════

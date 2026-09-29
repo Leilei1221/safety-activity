@@ -522,7 +522,9 @@ function infoFilled() { return !!(state.studentInfo.class_name && state.studentI
 function router() {
     const route = parseRoute();
     if (route.page !== 'home' && !infoFilled()) {
-        toast('請先填寫班級、座號、姓名！');
+        // 記住原本要去的頁面（例如從 3D 時間之河過來），填完資料後自動帶過去
+        try { sessionStorage.setItem('sg_pending', location.hash); } catch (_) {}
+        toast('請先填寫班級、座號、姓名，填完會自動帶你到剛剛的頁面！');
         location.replace('#/');
         return;
     }
@@ -671,6 +673,9 @@ function saveStudentInfo() {
     }
     state.studentInfo = { class_name: cls, seat: String(seatNum), name: name };
     saveState();
+    let pending = null;
+    try { pending = sessionStorage.getItem('sg_pending'); sessionStorage.removeItem('sg_pending'); } catch (_) {}
+    if (pending && pending !== '#/') { location.hash = pending; return; }
     renderHome();
 }
 

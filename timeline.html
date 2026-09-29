@@ -23,7 +23,9 @@
             text-align: center; padding: 16px; transition: opacity 1.2s ease; pointer-events: none; }
         #title-card.gone { opacity: 0; }
         #title-card .en { font-family: 'Cormorant Garamond', serif; letter-spacing: .5em; font-size: clamp(.8rem, 2vw, 1.1rem); color: var(--gold); margin-bottom: .8rem; }
-        #title-card h1 { margin: 0; font-size: clamp(2rem, 7vw, 4.4rem); font-weight: 700; letter-spacing: .15em; text-shadow: 0 2px 30px rgba(0,0,0,.6); }
+        #title-card::before { content: ''; position: absolute; inset: 0; z-index: -1;
+            background: radial-gradient(ellipse 60% 45% at 50% 50%, rgba(4,8,16,.72), rgba(4,8,16,.35) 60%, transparent 100%); }
+        #title-card h1 { margin: 0; font-size: clamp(2rem, 7vw, 4.4rem); font-weight: 700; letter-spacing: .15em; text-shadow: 0 2px 4px rgba(0,0,0,.8), 0 4px 30px rgba(0,0,0,.7); }
         #title-card p { font-family: 'Cormorant Garamond', 'Noto Serif TC', serif; font-style: italic; font-size: clamp(1rem, 2.4vw, 1.35rem); color: #e8eef5; margin: 1rem 0 0; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
         #title-card .start { pointer-events: auto; margin-top: 2rem; }
 
@@ -33,7 +35,10 @@
         #subtitle.hide { opacity: 0; }
         #subtitle .kicker { font-family: 'Cormorant Garamond', 'Noto Serif TC', serif; letter-spacing: .3em; font-size: clamp(.72rem, 1.8vw, .9rem); color: var(--gold); }
         #subtitle .kicker::before, #subtitle .kicker::after { content: ''; display: inline-block; width: 36px; height: 1px; background: var(--gold); opacity: .6; vertical-align: middle; margin: 0 12px; }
-        #subtitle .line { margin-top: .5rem; font-style: italic; font-size: clamp(.98rem, 2.3vw, 1.3rem); line-height: 1.7; color: #f3f6fa;
+        #scrim { position: fixed; left: 0; right: 0; bottom: 0; height: 46vh; z-index: 5; pointer-events: none;
+            background: linear-gradient(to top, rgba(3,6,12,.88) 0%, rgba(3,6,12,.6) 40%, transparent 100%); }
+        .scrim-top { position: fixed; left: 0; right: 0; top: 0; height: 24vh; z-index: 5; pointer-events: none; background: linear-gradient(to bottom, rgba(3,6,12,.7), transparent); }
+        #subtitle .line { margin-top: .5rem; font-style: italic; font-size: clamp(1rem, 2.4vw, 1.35rem); line-height: 1.7; color: #ffffff;
             text-shadow: 0 2px 10px rgba(0,0,0,.95), 0 0 2px rgba(0,0,0,.9); }
 
         /* 按鈕與控制列 */
@@ -43,7 +48,7 @@
         .btn.primary { background: rgba(245,212,138,.9); color: #1a1406; border-color: var(--gold); font-weight: 700; }
         .btn.primary:hover { background: #ffe3a3; }
         .btn:disabled { opacity: .35; cursor: default; }
-        #actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar) + 118px); z-index: 7;
+        #actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar) + 138px); z-index: 7;
             display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; width: min(900px, calc(100% - 32px)); transition: opacity .5s; }
         #actions:empty { display: none; }
         #topbar { position: fixed; top: calc(var(--bar) + 10px); left: 16px; right: 16px; z-index: 7; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
@@ -53,7 +58,9 @@
         /* 時間軸導覽 */
         #timeline { position: fixed; left: 50%; transform: translateX(-50%); top: calc(var(--bar) + 58px); z-index: 7;
             display: flex; gap: clamp(8px, 3vw, 28px); align-items: center; }
-        #timeline button { background: none; border: 0; color: rgba(255,255,255,.55); cursor: pointer; font-family: 'Cormorant Garamond', serif; font-size: clamp(.85rem, 2.2vw, 1.05rem); letter-spacing: .1em; padding: 4px; }
+        #timeline { background: rgba(6,10,18,.62); padding: 6px 14px; border-radius: 9999px; backdrop-filter: blur(6px); border: 1px solid rgba(245,212,138,.25); }
+        #timeline:empty { display: none; }
+        #timeline button { background: none; border: 0; color: rgba(255,255,255,.8); cursor: pointer; font-family: 'Cormorant Garamond', serif; font-size: clamp(.85rem, 2.2vw, 1.05rem); letter-spacing: .1em; padding: 4px; }
         #timeline button .d { display: block; width: 9px; height: 9px; margin: 0 auto 4px; border-radius: 50%; border: 1px solid currentColor; }
         #timeline button.on { color: var(--gold); }
         #timeline button.on .d { background: var(--gold); box-shadow: 0 0 10px var(--gold); }
@@ -95,11 +102,14 @@
 <div id="topbar">
     <a class="btn" href="index.html#/">✕ 回到網站</a>
     <div style="display:flex;gap:8px">
+        <button class="btn" id="btn-music" title="開關背景音樂">♪ 音樂：開</button>
         <button class="btn" id="btn-quality" title="畫面太卡時可切換">畫質：高</button>
     </div>
 </div>
 <div id="timeline"></div>
 <div id="actions"></div>
+<div id="scrim"></div>
+<div class="scrim-top"></div>
 <div id="subtitle" class="hide"><div class="kicker"></div><div class="line"></div></div>
 
 <div id="veil"></div>
@@ -147,7 +157,7 @@ let quality = (() => {
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.8;
+renderer.toneMappingExposure = 0.62;
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 6000);
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
@@ -336,6 +346,100 @@ function markStorySeen(key) {
 }
 
 // ═══════════════════════════════════════════════
+// 背景音樂：以 Web Audio 即時合成的溫和氛圍音樂（柔和和弦＋輕鈴聲＋水聲）
+// 不使用任何音檔，因此沒有版權問題
+// ═══════════════════════════════════════════════
+const music = (() => {
+    let ctx, master, bus, water, timer = null, nextT = 0, step = 0, mood = 'calm';
+    let on = (() => { try { return localStorage.getItem('sg_music') !== 'off'; } catch (_) { return true; } })();
+    const CHORDS = {
+        calm:   [[62, 66, 69, 73], [59, 62, 66, 69], [55, 59, 62, 66], [57, 61, 64, 69]],  // Dmaj7 Bm7 Gmaj7 A
+        solemn: [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 62], [55, 59, 62, 64]],  // Am7 Fmaj7 Cadd9 G6
+    };
+    const BELLS = { calm: [74, 76, 78, 81, 83, 86], solemn: [69, 72, 74, 76, 79] };
+    const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+    function init() {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+        master = ctx.createGain(); master.gain.value = 0;
+        const comp = ctx.createDynamicsCompressor();
+        bus = ctx.createGain();
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
+        const verb = ctx.createConvolver();
+        const len = ctx.sampleRate * 4, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+        for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+        verb.buffer = ir;
+        const wet = ctx.createGain(); wet.gain.value = .6;
+        bus.connect(lp); lp.connect(master); lp.connect(verb); verb.connect(wet); wet.connect(master);
+        master.connect(comp); comp.connect(ctx.destination);
+        // 水聲：濾波後的白噪音
+        const nb = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), nd = nb.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource(); src.buffer = nb; src.loop = true;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = .6;
+        water = ctx.createGain(); water.gain.value = .018;
+        src.connect(bp); bp.connect(water); water.connect(master); src.start();
+    }
+    function pad(notes, t, dur) {
+        notes.forEach((n, i) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = i === 0 ? 'sine' : 'triangle';
+            o.frequency.value = hz(n - (i === 0 ? 24 : 12));
+            o.detune.value = (Math.random() - .5) * 8;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(i === 0 ? .06 : .035, t + 2.5);
+            g.gain.setValueAtTime(i === 0 ? .06 : .035, t + dur - .5);
+            g.gain.linearRampToValueAtTime(0, t + dur + 3);
+            o.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 3.2);
+        });
+    }
+    function bell(n, t) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = hz(n);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.03, t + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, t + 3.5);
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + 3.6);
+    }
+    function schedule() {
+        while (nextT < ctx.currentTime + 1.5) {
+            const set = CHORDS[mood], dur = mood === 'calm' ? 8 : 10;
+            pad(set[step % set.length], nextT, dur);
+            const bells = BELLS[mood];
+            for (let k = 0; k < 3; k++) if (Math.random() < (mood === 'calm' ? .7 : .35)) bell(bells[Math.floor(Math.random() * bells.length)], nextT + k * (dur / 3) + Math.random() * 1.2);
+            nextT += dur; step++;
+        }
+    }
+    function start() {
+        if (!on) return;
+        try {
+            if (!ctx) init();
+            ctx.resume();
+            if (nextT < ctx.currentTime) nextT = ctx.currentTime + .1;
+            clearInterval(timer); timer = setInterval(schedule, 400); schedule();
+            master.gain.cancelScheduledValues(ctx.currentTime);
+            master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
+            master.gain.linearRampToValueAtTime(.9, ctx.currentTime + 3);
+        } catch (_) {}
+    }
+    function stop() {
+        if (!ctx) return;
+        master.gain.cancelScheduledValues(ctx.currentTime);
+        master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
+        master.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
+        clearInterval(timer); timer = null;
+    }
+    function label() { $('btn-music').textContent = `♪ 音樂：${on ? '開' : '關'}`; }
+    label();
+    return {
+        start, stop,
+        toggle() { on = !on; try { localStorage.setItem('sg_music', on ? 'on' : 'off'); } catch (_) {} label(); on ? start() : stop(); },
+        setMood(m) { mood = m; if (water) water.gain.setTargetAtTime(m === 'calm' ? .018 : .006, ctx.currentTime, 1.5); },
+        get on() { return on; },
+    };
+})();
+$('btn-music').onclick = () => music.toggle();
+
+// ═══════════════════════════════════════════════
 // 場景一：時間之河
 // ═══════════════════════════════════════════════
 const EVENTS = Object.keys(cases).map(key => ({ key, ...cases[key], has3d: key === 'taroko' }));
@@ -345,10 +449,10 @@ const stops = [0, ...EVENTS.map((_, i) => gateZ(i) + 34)];
 
 function buildRiver() {
     const scene = new THREE.Scene();
-    const sun = makeSky(scene, 5, 180, { turbidity: 7, rayleigh: 1.6 });
-    scene.fog = new THREE.FogExp2(0x9fb3c2, 0.00055);
+    const sun = makeSky(scene, 2.5, 208, { turbidity: 9, rayleigh: 2.6 }); // 黃昏：天色較深、文字較清楚
+    scene.fog = new THREE.FogExp2(0x6f7f94, 0.00055);
     scene.environmentIntensity = .45;
-    scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a3b3a, 0.8));
+    scene.add(new THREE.HemisphereLight(0xc9d6ee, 0x22302f, 0.7));
     const dl = new THREE.DirectionalLight(0xffe2b8, 2.2);
     dl.position.copy(sun).multiplyScalar(500);
     scene.add(dl);
@@ -407,7 +511,7 @@ function buildRiver() {
             { text: ev.year, font: '500 150px "Cormorant Garamond", serif', y: 170, color: ev.has3d ? '#ffe7a8' : '#ffffff' },
             { text: ev.title, font: '700 76px "Noto Serif TC", serif', y: 330, blur: 12 },
             { text: ev.has3d ? '— 3D 因果動畫 —' : '— 平面版故事 —', font: 'italic 500 44px "Cormorant Garamond", "Noto Serif TC", serif', y: 440, color: '#e5e7eb', blur: 6 },
-        ], { bg: 'rgba(8,12,20,.55)' });
+        ], { bg: 'rgba(8,12,20,.78)' });
         const sign = new THREE.Mesh(new THREE.PlaneGeometry(26, 13), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
         sign.position.y = 27; g.add(sign);
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(ev.has3d ? '255,215,140' : '200,220,255'), transparent: true, opacity: .55, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -438,7 +542,7 @@ function buildRiver() {
 
     let boatZ = 0, targetZ = 0, time = 0;
     return {
-        scene,
+        scene, gates,
         get boatZ() { return boatZ; },
         setTarget(z) { targetZ = z; },
         jump(z) { boatZ = targetZ = z; },
@@ -733,10 +837,43 @@ async function goStop(i) {
         const ev = EVENTS[stopIndex - 1];
         nav.splice(1, 0, ev.has3d
             ? { label: '進入事故現場（3D 因果動畫）', primary: true, onClick: enterTaroko }
-            : { label: '觀看事故故事（平面版）', primary: true, href: `index.html#/${ev.key}/story` });
+            : { label: '觀看事故故事 ▶', primary: true, onClick: () => playStory(ev) });
     }
     actions(nav);
 }
+
+// ── 其他事件：在時間之河上以字幕播放故事時間線 ──
+async function playStory(ev) {
+    const chs = storyData[ev.key].chapters;
+    $('timeline').style.display = 'none';
+    for (let i = 0; i < chs.length; i++) {
+        await say(`${ev.title} ・ ${chs[i].time} ・ ${chs[i].title}`, chs[i].text);
+        await stepButton(i < chs.length - 1 ? `下一幕 ▶（${i + 1}/${chs.length}）` : '看完了 ▶');
+    }
+    markStorySeen(ev.key);
+    await say(ev.title, '接下來，換你親自分析這起事故的因果與預防。');
+    $('timeline').style.display = '';
+    actions([
+        { label: '◀ 回到時間之河', onClick: () => goStop(stopIndex) },
+        { label: '進入現場模擬與分析 →', primary: true, href: `index.html#/${ev.key}/sim` },
+    ]);
+}
+
+// 點擊 3D 場景中的門：先航向那座門，再點一次就開始
+const ray = new THREE.Raycaster(), pointer = new THREE.Vector2();
+function gateAt(e) {
+    if (active !== river || !$('title-card').classList.contains('gone')) return -1;
+    pointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    ray.setFromCamera(pointer, camera);
+    return river.gates.findIndex(g => ray.intersectObject(g.g, true).length > 0);
+}
+canvas.addEventListener('click', e => {
+    const i = gateAt(e);
+    if (i < 0 || $('timeline').style.display === 'none') return;
+    if (stopIndex === i + 1) { const ev = EVENTS[i]; ev.has3d ? enterTaroko() : playStory(ev); }
+    else goStop(i + 1);
+});
+canvas.addEventListener('pointermove', e => { canvas.style.cursor = gateAt(e) >= 0 ? 'pointer' : ''; });
 
 // ── 太魯閣號流程 ──
 const SHOTS = {
@@ -756,6 +893,7 @@ const TOLD = {
 
 async function enterTaroko() {
     actions([]);
+    music.setMood('solemn');
     subtitle.classList.add('hide');
     await fadeVeil(true);
     if (!taroko) taroko = buildTaroko();
@@ -867,6 +1005,7 @@ async function replayWithout(k) {
 
 async function backToRiver() {
     actions([]);
+    music.setMood('calm');
     await fadeVeil(true);
     useScene(river);
     $('timeline').style.display = '';
@@ -902,6 +1041,7 @@ function loop() {
     window.__timelineReady = true;
     $('loading').remove();
     const begin = async () => {
+        music.start(); // 瀏覽器規定：音樂必須在使用者點擊後才能開始
         $('title-card').classList.add('gone');
         renderTimeline();
         goStop(0);
@@ -923,6 +1063,7 @@ function loop() {
     });
     // 從平面版「以 3D 觀看」直接進入：timeline.html#taroko
     if (location.hash === '#taroko') {
+        addEventListener('pointerdown', () => music.start(), { once: true });
         $('title-card').classList.add('gone');
         stopIndex = EVENTS.findIndex(e => e.key === 'taroko') + 1;
         river.jump(stops[stopIndex]);

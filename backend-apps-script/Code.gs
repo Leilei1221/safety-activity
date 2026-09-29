@@ -19,6 +19,7 @@ const HEADERS = [
   '三段五級得分', '三段五級明細',
   '現場模擬得分', '現場模擬明細',
   '事故故事觀看', '學習回饋', '回饋來源', '提交編號',
+  '骨牌作答次數',   // 新欄位一律加在最後，舊資料與 Autocrat 對應不受影響
 ];
 const DOMINO_NAMES = ['環境因素', '人為疏失', '危險因素', '意外事故', '損失'];
 const MAX_TEXT = 1000;   // 每一格最多保留的字數，避免異常資料塞爆試算表
@@ -68,6 +69,10 @@ function getSheet_() {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold').setBackground('#fde2e2');
+  } else if (sheet.getLastColumn() < HEADERS.length) {
+    // 舊版試算表：補上新增的欄位標題
+    const from = sheet.getLastColumn() + 1, n = HEADERS.length - from + 1;
+    sheet.getRange(1, from, 1, n).setValues([HEADERS.slice(from - 1)]).setFontWeight('bold').setBackground('#fde2e2');
   }
   return sheet;
 }
@@ -100,6 +105,7 @@ function buildRow_(d, fb, id) {
     clip_(fb.text),
     fb.source,
     id,
+    Math.max(1, Math.floor(Number(d.domino_attempt) || 1)),
   ];
 }
 
@@ -145,6 +151,7 @@ function assessDomino_(d) {
 function groqFeedback_(d, key) {
   const ref = Array.isArray(d.domino_reference) ? d.domino_reference : [];
   const qa = assessDomino_(d);
+  const attempt = Math.max(1, Math.floor(Number(d.domino_attempt) || 1));
   const dominoSummary = qa.items.map(it => {
     const r = ref[it.i] || {};
     const flags = [];
@@ -166,7 +173,8 @@ function groqFeedback_(d, key) {
 不可以稱讚學生沒有做到的事，也不可以把空泛、錯置或重複的答案說成「寫得很到位」。
 
 學生：${d.name}（${d.class_name}班 第${d.seat}號）
-案例：${d.case_title}
+案例：${d.case_title}${attempt > 1 ? `
+這是學生第 ${attempt} 次作答骨牌（看過回饋後主動修改），請肯定他願意修正的態度。` : ''}
 
 【骨牌理論】學生作答與參考分析（程式已先檢查：${qa.solid}/5 張寫得具體）：
 ${dominoSummary}
@@ -183,6 +191,12 @@ ${d.sim_total ? `\n【現場模擬】${Number(d.sim_score) || 0}/${Number(d.sim_
 - 學生的答案和參考分析「方向相同」就算對，不要求字句一樣；但只有一兩個字、沒有說明原因或對象的，算「太簡略」。
 - 自然現象（如地震、颱風）本身通常是觸發事件；「危險因素」要寫的是讓事故發生的不安全狀態（例如建築物承受不了搖晃），不是再寫一次自然現象。
 - 口語化或情緒性的描述（例如「人死了一堆」）要引導改成具體、客觀的說法（例如傷亡人數、財產與社會影響）。
+- 學生把答案寫在錯的骨牌（例如在「意外事故」寫傷亡，那其實是「損失」），要點出放錯位置。
+
+事實正確最重要：
+- 事故的原因、經過、數字、地點，只能引用上面「參考分析」與學生作答裡出現過的內容。
+- 絕對不可以加入參考分析沒有的原因、數字、速度、人數或細節；不確定就不要寫。
+- 不要替學生寫出完整的改寫句。只能用提問引導，或給「是誰……，在什麼狀況下……」這種句型開頭。
 
 請寫 200～300 字的回饋，依序包含：
 1. 稱呼姓名，真誠肯定他「確實做到」的部分（例如完成觀看、配對正確、某張骨牌方向正確）。
@@ -190,10 +204,32 @@ ${d.sim_total ? `\n【現場模擬】${Number(d.sim_score) || 0}/${Number(d.sim_
 3. 修正方向：用提問引導思考（例如「是誰的決定讓風險變大？」「當時有哪些不安全的狀態？」），給一個改寫示範的開頭，但不要直接給完整答案。
 4. 鼓勵他用這個方法重新整理自己的分析，或在下一個事件再試一次。
 ${d.sim_review ? '5. 現場模擬若有選錯，用一句話提醒正確做法。\n' : ''}
-直接輸出回饋文字，不要標題、條列符號或前言，使用繁體中文（台灣用語）。`;
+直接輸出回饋文字，分 2～4 段，不要標題、條列符號、Markdown 或前言，使用繁體中文（台灣用語）。`;
 
+  // 事實檢查：回饋裡出現的數字，都必須來自提供給 AI 的資料；否則要求重寫一次，仍不合格就改用固定回饋
+  let text = callGroq_(prompt, key, 0.5);
+  let bad = unknownNumbers_(text, prompt);
+  if (bad.length) {
+    console.warn('AI 回饋出現資料裡沒有的數字 ' + bad.join('、') + '，重寫一次');
+    text = callGroq_(prompt + `
+
+注意：你上一次寫出了資料裡沒有的數字（${bad.join('、')}）。只能使用參考分析中出現的事實與數字。`, key, 0.2);
+    bad = unknownNumbers_(text, prompt);
+    if (bad.length) throw new Error('AI 回饋仍有資料裡沒有的數字：' + bad.join('、'));
+  }
+  return text.replace(/^\s*[-*•]\s+/gm, '').replace(/\*\*/g, '');
+}
+
+// 找出 text 中出現、但 source 裡沒有的數字（兩位數以上，例如 150、120）
+function unknownNumbers_(text, source) {
+  const nums = String(text).match(/\d[\d,.]*\d/g) || [];
+  const src = String(source).replace(/,/g, '');
+  return nums.map(n => n.replace(/,/g, '')).filter(n => src.indexOf(n) < 0).filter((n, i, a) => a.indexOf(n) === i);
+}
+
+function callGroq_(prompt, key, temperature) {
   const model = (PropertiesService.getScriptProperties().getProperty('GROQ_MODEL') || 'openai/gpt-oss-120b').trim();
-  const req = { model: model, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.7 };
+  const req = { model: model, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: temperature };
   // gpt-oss 會先「思考」再回答，思考也算字數；設成 low 讓字數留給回饋本身
   if (/gpt-oss/.test(model)) req.reasoning_effort = 'low';
   const res = UrlFetchApp.fetch('https://api.groq.com/openai/v1/chat/completions', {

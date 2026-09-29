@@ -69,6 +69,12 @@
         /* 骨牌選擇 */
         .pick { border-color: rgba(255,255,255,.4); }
 
+        #hud { position: fixed; right: 16px; top: calc(var(--bar) + 64px); z-index: 7; display: flex; align-items: baseline; gap: 8px;
+            padding: 10px 16px; border-radius: 14px; background: rgba(6,10,18,.72); border: 1px solid rgba(245,212,138,.35);
+            font-family: 'Cormorant Garamond', 'Noto Serif TC', serif; font-variant-numeric: tabular-nums; }
+        #hud b { font-size: 2.1rem; line-height: 1; }
+        #hud .lab { font-size: .8rem; color: #cbd5e1; }
+        #hud .lim { margin-left: 8px; padding: 2px 8px; border-radius: 9999px; border: 2px solid #d62828; background: #fff; color: #111; font-weight: 700; font-size: .85rem; }
         #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 4; transition: opacity .15s; }
         #veil { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; z-index: 8; transition: opacity 1s ease; }
         #veil.off { opacity: 0; }
@@ -110,6 +116,7 @@
 </div>
 <div id="timeline"></div>
 <div id="actions"></div>
+<div id="hud" hidden></div>
 <div id="scrim"></div>
 <div class="scrim-top"></div>
 <div id="subtitle" class="hide"><div class="kicker"></div><div class="line"></div></div>
@@ -517,7 +524,7 @@ $('btn-river').onclick = () => (active === river ? goStop(stopIndex) : backToRiv
 // ═══════════════════════════════════════════════
 // 場景一：時間之河
 // ═══════════════════════════════════════════════
-const HAS3D = ['case2', 'case3', 'taroko', 'mataian'];   // 有 3D 因果骨牌場景的事件
+const HAS3D = ['case2', 'case3', 'puyuma', 'taroko', 'mataian'];   // 有 3D 因果骨牌場景的事件
 const SITE = ($('site-link')?.getAttribute('href') || 'index.html').split('#')[0];   // 平面版網址（跟著「回到網站」連結）
 const EVENTS = Object.keys(cases).map(key => ({ key, ...cases[key], has3d: HAS3D.includes(key) }));
 const GATE_GAP = 230, FIRST_GATE = -170;
@@ -1266,127 +1273,210 @@ function buildQuake() {
 
 // ═══════════════════════════════════════════════
 // 場景：馬太鞍溪堰塞湖與光復鄉（居民以光點抽象呈現，不呈現人物傷亡）
+// 地形：上游是高山溪谷（堰塞湖在山谷高處），溪水沿著陡峭的河谷流到平原上的光復市區
 // ═══════════════════════════════════════════════
+function mataianFloor(z) {   // 溪谷底部的高度：上游高、下游平
+    const t = THREE.MathUtils.clamp((-40 - z) / 330, 0, 1);
+    return 95 * Math.pow(t, 1.25);
+}
+function mataianHeight(x, z) {
+    const ax = Math.abs(x);
+    let h = mataianFloor(z);
+    const mountainZone = THREE.MathUtils.clamp((-20 - z) / 60, 0, 1);          // 越上游，兩側山壁越高
+    const w = 20 + (1 - mountainZone) * 8;
+    if (ax > w) h += Math.pow(ax - w, 1.2) * 0.42 * mountainZone;
+    if (ax > 210) h += (ax - 210) * .5 * (1 - mountainZone);                     // 平原遠處的丘陵
+    const rough = THREE.MathUtils.clamp((ax - 12) / 20, 0, 1);                   // 溪床保持平順，山壁才有起伏
+    h += (Math.sin(x * .07 + z * .05) + Math.sin(x * .13 - z * .09)) * 2.2 * mountainZone * rough;
+    const hx = x - 150, hz = z - 130;                                            // 避難處所所在的小山丘
+    h += 26 * Math.exp(-(hx * hx + hz * hz) / 900);
+    return h;
+}
+function flowTexture() {   // 泥流的流動紋理
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 256;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#6e5234'; g.fillRect(0, 0, 128, 256);
+    for (let i = 0; i < 70; i++) {
+        const x = Math.random() * 128, y = Math.random() * 256, l = 20 + Math.random() * 60;
+        g.strokeStyle = Math.random() < .35 ? 'rgba(235,225,205,.55)' : 'rgba(150,115,75,.8)';
+        g.lineWidth = 1 + Math.random() * 2.5;
+        g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 6, y + l * .3, x - 6, y + l * .6, x, y + l); g.stroke();
+    }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
 function buildMataian() {
     const scene = new THREE.Scene();
     const sun = makeSky(scene, 9, 200, { turbidity: 12, rayleigh: 3 });
-    scene.fog = new THREE.FogExp2(0x7c8690, 0.0032);
+    // 颱風天：灰色的天空與雨霧（天空改用單色，比較明亮）
+    scene.children.filter(o => o.material?.uniforms?.sunPosition).forEach(o => o.visible = false);
+    scene.background = new THREE.Color(0x8e979f);
+    scene.fog = new THREE.FogExp2(0x8e979f, 0.0015);
     scene.environmentIntensity = .45;
     const hemi = new THREE.HemisphereLight(0xc7d0dc, 0x2f3a2c, 1);
-    const dl = new THREE.DirectionalLight(0xe8ecf2, 1.6); dl.position.copy(sun).multiplyScalar(300);
+    const dl = new THREE.DirectionalLight(0xe8ecf2, 1.8); dl.position.copy(sun).multiplyScalar(300);
     scene.add(hemi, dl);
 
-    // 地面、溪床
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), new THREE.MeshStandardMaterial({ color: 0x4d6a3e, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2; scene.add(ground);
-    const bed = new THREE.Mesh(new THREE.BoxGeometry(34, .3, 620), new THREE.MeshStandardMaterial({ color: 0x8f8a80, roughness: 1 }));
-    bed.position.set(0, .12, -50); scene.add(bed);
-    const creek = new THREE.Mesh(new THREE.BoxGeometry(6, .2, 620), new THREE.MeshStandardMaterial({ color: 0x5f8fa0, roughness: .3 }));
-    creek.position.set(0, .3, -50); scene.add(creek);
-    // 兩側山脈
-    const mCol = [0x2f4a33, 0x36533a, 0x2a4230];
-    for (let i = 0; i < 18; i++) {
-        const side = i % 2 ? 1 : -1, z = -340 + Math.floor(i / 2) * 32;
-        const m = mountain(34 + Math.random() * 14, 60 + Math.random() * 60, mCol[i % 3], i + 21);
-        m.position.x = side * (62 + Math.random() * 16); m.position.z = z; scene.add(m);
+    // 地形：以高度場建成的山谷，依高度上色
+    const tg = new THREE.PlaneGeometry(760, 940, 152, 188); tg.rotateX(-Math.PI / 2);
+    const tp = tg.attributes.position, colors = [];
+    const cLow = new THREE.Color(0x6a9150), cHigh = new THREE.Color(0x46693f), cBed = new THREE.Color(0x8f8a80), c = new THREE.Color();
+    for (let i = 0; i < tp.count; i++) {
+        const x = tp.getX(i), z = tp.getZ(i) - 150;
+        tp.setZ(i, z);
+        const h = mataianHeight(x, z); tp.setY(i, h);
+        const rel = h - mataianFloor(z);
+        if (Math.abs(x) < 17 && rel < 3) c.copy(cBed); else c.copy(cLow).lerp(cHigh, THREE.MathUtils.clamp(rel / 60, 0, 1));
+        colors.push(c.r, c.g, c.b);
     }
-    const back = mountain(160, 190, 0x2c4430, 77); back.position.set(0, 93, -420); scene.add(back);
-    // 崩塌地（山的傷口）
-    const scar = new THREE.Mesh(new THREE.PlaneGeometry(40, 60), new THREE.MeshStandardMaterial({ color: 0x9a7b55, roughness: 1, transparent: true, opacity: 0 }));
-    scar.position.set(34, 26, -176); scar.rotation.set(-.2, -1.1, 0); scene.add(scar);
-    // 堰塞壩與湖
-    const dam = new THREE.Mesh(new THREE.BoxGeometry(76, 22, 34), new THREE.MeshStandardMaterial({ color: 0x8a6a45, flatShading: true, roughness: 1 }));
-    dam.position.set(0, 11, -165); scene.add(dam);
-    const lakeMat = new THREE.MeshStandardMaterial({ color: 0x4f7f8c, roughness: .15, metalness: .3 });
-    const lake = new THREE.Mesh(new THREE.BoxGeometry(80, 1, 150), lakeMat); scene.add(lake);
-    function setLake(level) { lake.visible = level > .3; lake.scale.y = Math.max(.01, level); lake.position.set(0, level / 2, -258); }
+    tg.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    tg.computeVertexNormals();
+    scene.add(new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 })));
+    // 小溪
+    const creekPts = [];
+    for (let z = -380; z <= 320; z += 10) creekPts.push(new THREE.Vector3(0, mataianFloor(z) + .4, z));
+    const creek = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(creekPts), 140, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x6d9fb0, roughness: .3 }));
+    scene.add(creek);
+    const far = mountain(220, 200, 0x2c4430, 77); far.position.set(0, far.position.y + 90, -640); scene.add(far);
+
+    // 崩塌地（山的傷口）：貼著右側山壁的一塊地形
+    const DAM_Z = -235;
+    const sg = new THREE.PlaneGeometry(40, 44, 10, 10); sg.rotateX(-Math.PI / 2);
+    const sp = sg.attributes.position;
+    for (let i = 0; i < sp.count; i++) { const x = sp.getX(i) + 38, z = sp.getZ(i) + DAM_Z - 12; sp.setX(i, x); sp.setZ(i, z); sp.setY(i, mataianHeight(x, z) + .8); }
+    sg.computeVertexNormals();
+    const scar = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ color: 0x9a7b55, roughness: 1, flatShading: true, transparent: true, opacity: 0 }));
+    scene.add(scar);
+    // 堰塞壩
+    const damBase = mataianFloor(DAM_Z);
+    const dam = new THREE.Mesh(new THREE.BoxGeometry(62, 26, 40, 8, 3, 4), new THREE.MeshStandardMaterial({ color: 0x8a6a45, flatShading: true, roughness: 1 }));
+    { const p = dam.geometry.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + (Math.random() - .5) * 2.5); dam.geometry.computeVertexNormals(); }
+    dam.position.set(0, damBase + 13, DAM_Z); scene.add(dam);
+    const DAM_TOP = damBase + 26;
+    // 堰塞湖：水平湖面，被上游的山谷地形自然圍住
+    const lake = new THREE.Mesh(new THREE.PlaneGeometry(120, 190), new THREE.MeshStandardMaterial({ color: 0x3e6b78, roughness: .3, metalness: .1 }));
+    lake.rotation.x = -Math.PI / 2; scene.add(lake);
+    function setLake(level) { lake.visible = level > damBase + .5; lake.position.set(0, level, DAM_Z - 110); }
+    const lakeLabel = new THREE.Mesh(new THREE.PlaneGeometry(26, 4), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false,
+        map: textTexture([{ text: '堰塞湖', font: '700 120px "Noto Serif TC", serif', y: 90, color: '#dff4ff', blur: 8 }], { w: 1024, h: 180 }) }));
+    lakeLabel.position.set(0, DAM_TOP + 22, DAM_Z - 90); scene.add(lakeLabel);
     // 疏洪道（抽掉骨牌後才出現）
-    const spill = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 36), new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x22aa55, emissiveIntensity: .8 }));
-    spill.position.set(20, 12.5, -165); spill.visible = false; scene.add(spill);
-    // 溢流
-    const overflowTex = glowTexture('150,120,90');
-    const overflow = [];
-    for (let i = 0; i < 40; i++) {
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: overflowTex, transparent: true, opacity: 0, depthWrite: false }));
-        s.scale.set(8, 8, 1); scene.add(s); overflow.push({ s, t: Math.random(), x: (Math.random() - .5) * 60 });
+    const spill = new THREE.Mesh(new THREE.BoxGeometry(8, 1.5, 44), new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x22aa55, emissiveIntensity: .8 }));
+    spill.position.set(26, DAM_TOP - 8, DAM_Z); spill.visible = false; scene.add(spill);
+
+    // 泥流：沿著河谷往下游一段段延伸，表面紋理持續往下游流動
+    const ftex = flowTexture();
+    const N = 150, fpos = [], fuv = [], fidx = [];
+    const Z0 = DAM_Z + 18, Z1 = 300;
+    for (let i = 0; i <= N; i++) {
+        const z = Z0 + (Z1 - Z0) * i / N;
+        const y = (i === 0 ? DAM_TOP : mataianFloor(z)) + 1.6;
+        const w = z < -40 ? 18 : 30;
+        fpos.push(-w / 2, y, z, w / 2, y, z);
+        const v = (z - Z0) / 22;
+        fuv.push(0, v, 1, v);
+        if (i < N) { const a = i * 2; fidx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
     }
-    let overflowOn = false;
-    // 泥流（沿河道往下游推進）
-    const mudMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3a, roughness: .6 });
-    const mud = new THREE.Mesh(new THREE.BoxGeometry(34, 3, 1), mudMat); mud.visible = false; scene.add(mud);
-    function setMud(front) { mud.visible = front > -148; const len = Math.max(1, front + 148); mud.scale.z = len; mud.position.set(0, 1.6, -148 + len / 2); }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(fpos, 3));
+    fg.setAttribute('uv', new THREE.Float32BufferAttribute(fuv, 2));
+    fg.setIndex(fidx); fg.computeVertexNormals();
+    const flow = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: ftex, roughness: .55, color: 0xffffff }));
+    scene.add(flow);
+    function setFlow(front) {   // front：泥流前緣的 z 座標
+        const n = THREE.MathUtils.clamp(Math.round((front - Z0) / (Z1 - Z0) * N), 0, N);
+        fg.setDrawRange(0, n * 6); flow.visible = n > 0;
+    }
+    const FLOW_SPEED = 1.6;
+    // 溢流：壩頂的水花與浪頭的飛沫
+    const sprayTex = glowTexture('225,210,185');
+    const spray = [];
+    for (let i = 0; i < 60; i++) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sprayTex, transparent: true, opacity: 0, depthWrite: false }));
+        s.scale.set(7, 7, 1); scene.add(s); spray.push({ s, t: Math.random(), x: (Math.random() - .5) * 60, head: i >= 36 });
+    }
+    let overflowOn = false, frontZ = null;
+
     // 光復市區：房屋、堤防、台9線馬太鞍溪橋
     const houses = [];
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a4b3a, roughness: .8 });
     const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .9 });
     for (let i = 0; i < 40; i++) {
         const x = 30 + (i % 8) * 11 + (Math.random() - .5) * 3, z = 70 + Math.floor(i / 8) * 20 + (Math.random() - .5) * 4;
-        const h = new THREE.Mesh(new THREE.BoxGeometry(6, 4 + (i % 3) * 2, 6), wallMat); h.position.set(x, h.geometry.parameters.height / 2, z); scene.add(h);
-        const r = new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.4, 4), roofMat); r.rotation.y = Math.PI / 4; r.position.set(x, h.geometry.parameters.height + 1.2, z); scene.add(r);
+        const hh = 4 + (i % 3) * 2;
+        const h = new THREE.Mesh(new THREE.BoxGeometry(6, hh, 6), wallMat); h.position.set(x, hh / 2, z); scene.add(h);
+        const r = new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.4, 4), roofMat); r.rotation.y = Math.PI / 4; r.position.set(x, hh + 1.2, z); scene.add(r);
         houses.push({ x, z });
     }
     const leveeMat = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: .9 });
     const levee = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 150), leveeMat); levee.position.set(19, 2, 135); scene.add(levee);
     const breach = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 50), leveeMat.clone()); breach.position.set(19, 2, 35); scene.add(breach);
-    const bridge = new THREE.Group(); scene.add(bridge);
     const deck = new THREE.Mesh(new THREE.BoxGeometry(46, 1.2, 7), new THREE.MeshStandardMaterial({ color: 0xb5b0a6, roughness: .8 }));
-    deck.position.set(0, 5.5, 20); bridge.add(deck);
+    scene.add(deck);
     const piers = [];
-    for (const x of [-12, 0, 12]) { const p = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5, 4), leveeMat); p.position.set(x, 2.5, 20); bridge.add(p); piers.push(p); }
-    const bridgeLabel = new THREE.Mesh(new THREE.PlaneGeometry(22, 3), new THREE.MeshBasicMaterial({ transparent: true,
-        map: textTexture([{ text: '台9線 馬太鞍溪橋', font: '700 100px "Noto Serif TC", serif', y: 70, color: '#ffffff', blur: 8 }], { w: 1024, h: 140 }) }));
-    bridgeLabel.position.set(0, 12, 20); scene.add(bridgeLabel);
-    const townLabel = new THREE.Mesh(new THREE.PlaneGeometry(22, 4), new THREE.MeshBasicMaterial({ transparent: true,
-        map: textTexture([{ text: '光復鄉市區', font: '700 110px "Noto Serif TC", serif', y: 90, color: '#ffffff', blur: 8 }], { w: 1024, h: 180 }) }));
-    townLabel.position.set(68, 22, 110); scene.add(townLabel);
-    // 淹進市區的泥水
-    const flood = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 130), mudMat); flood.position.set(72, 0, 120); flood.visible = false; scene.add(flood);
-    // 高地上的避難處所
-    const hill = mountain(40, 26, 0x55704a, 5); hill.position.set(150, 11, 130); scene.add(hill);
-    const shelter = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 10), new THREE.MeshStandardMaterial({ color: 0xf2efe6 })); shelter.position.set(150, 26, 130); scene.add(shelter);
-    const shelterLabel = new THREE.Mesh(new THREE.PlaneGeometry(18, 3), new THREE.MeshBasicMaterial({ transparent: true,
-        map: textTexture([{ text: '避難處所', font: '700 110px "Noto Serif TC", serif', y: 70, color: '#bff5d0', blur: 8 }], { w: 1024, h: 140 }) }));
-    shelterLabel.position.set(150, 34, 130); scene.add(shelterLabel);
+    for (const x of [-12, 0, 12]) { const p = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5, 4), leveeMat); p.position.set(x, 2.5, 20); scene.add(p); piers.push(p); }
+    const mkLabel = (text, color, w, pos) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * .14), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false,
+            map: textTexture([{ text, font: '700 100px "Noto Serif TC", serif', y: 70, color, blur: 8 }], { w: 1024, h: 140 }) }));
+        m.position.set(...pos); scene.add(m); return m;
+    };
+    mkLabel('台9線 馬太鞍溪橋', '#ffffff', 22, [0, 12, 20]);
+    mkLabel('光復鄉市區', '#ffffff', 26, [68, 22, 110]);
+    const shelterY = mataianHeight(150, 130);
+    const shelter = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 10), new THREE.MeshStandardMaterial({ color: 0xf2efe6 })); shelter.position.set(150, shelterY + 2.5, 130); scene.add(shelter);
+    mkLabel('避難處所', '#bff5d0', 18, [150, shelterY + 11, 130]);
+    // 淹進市區的泥水（同樣有流動紋理）
+    const ftex2 = ftex.clone(); ftex2.repeat.set(4, 4); ftex2.needsUpdate = true;
+    const flood = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 130), new THREE.MeshStandardMaterial({ map: ftex2, roughness: .6 }));
+    flood.position.set(72, 0, 120); flood.visible = false; scene.add(flood);
     // 居民：以光點表示（約七成撤離、三成留在家中）
-    const N = 60, dotGeo = new THREE.SphereGeometry(.9, 8, 8);
+    const dotGeo = new THREE.SphereGeometry(.9, 8, 8);
     const dots = [];
-    for (let i = 0; i < N; i++) {
+    for (let i = 0; i < 60; i++) {
         const h = houses[i % houses.length];
         const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xfff1c0 }));
         const home = new THREE.Vector3(h.x + (Math.random() - .5) * 4, 1.5, h.z + 4.5);
-        const safe = new THREE.Vector3(150 + (Math.random() - .5) * 20, 30, 138 + Math.random() * 10);
+        const safe = new THREE.Vector3(150 + (Math.random() - .5) * 18, shelterY + 1.5, 138 + Math.random() * 8);
         m.position.copy(home); scene.add(m);
         dots.push({ m, home, safe, stays: i % 10 >= 7 });
     }
     // 雨
-    const rainN = 1600, rp = new Float32Array(rainN * 3);
-    for (let i = 0; i < rainN; i++) { rp[i * 3] = (Math.random() - .5) * 400; rp[i * 3 + 1] = Math.random() * 120; rp[i * 3 + 2] = -300 + Math.random() * 520; }
+    const rainN = 1800, rp = new Float32Array(rainN * 3);
+    for (let i = 0; i < rainN; i++) { rp[i * 3] = (Math.random() - .5) * 420; rp[i * 3 + 1] = Math.random() * 160; rp[i * 3 + 2] = -380 + Math.random() * 640; }
     const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rp, 3));
-    const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xd8e2ec, size: .9, transparent: true, opacity: .55 }));
+    const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xd8e2ec, size: .45, transparent: true, opacity: .4 }));
     scene.add(rain);
 
-    const kit = makeKit(scene, { domX: -120, domZ: 150, lanterns: 19, area: { x: 70, z: 110, w: 70, d: 90, y: 4 } });
+    const kit = makeKit(scene, { domX: -130, domZ: 150, lanterns: 19, area: { x: 70, z: 110, w: 70, d: 90, y: 4 } });
     const dimmer = makeDimmer(scene, [hemi, dl]);
     let lakeLevel = 0, time = 0, blink = false;
 
     function reset() {
         kit.reset(); dimmer.restore();
-        scar.material.opacity = 0; dam.scale.y = .01; dam.position.y = .2; lakeLevel = 0; setLake(0);
-        spill.visible = false; overflowOn = false; overflow.forEach(o => o.s.material.opacity = 0);
-        setMud(-200); flood.visible = false; flood.scale.y = .01;
-        deck.rotation.set(0, 0, 0); deck.position.set(0, 5.5, 20); piers.forEach(p => { p.rotation.set(0, 0, 0); p.visible = true; });
-        breach.visible = true; breach.material.color.setHex(0x9a9a92); breach.material.emissive?.setHex(0); breach.scale.y = 1; breach.position.y = 2;
+        scar.material.opacity = 0; dam.scale.y = .01; dam.position.y = damBase + .2; lakeLevel = damBase; setLake(lakeLevel);
+        spill.visible = false; overflowOn = false; frontZ = null; spray.forEach(o => o.s.material.opacity = 0);
+        setFlow(Z0); flood.visible = false; flood.scale.y = .01;
+        deck.rotation.set(0, 0, 0); deck.position.set(0, 5.5, 20); piers.forEach(p => p.rotation.set(0, 0, 0));
+        breach.visible = true; breach.scale.y = 1; breach.position.y = 2; breach.material.emissive.setHex(0);
         levee.scale.y = 1; levee.position.y = 2; levee.material.emissive.setHex(0);
         dots.forEach(d => { d.m.position.copy(d.home); d.m.visible = true; d.m.material.color.setHex(0xfff1c0); });
         blink = false;
     }
     reset();
 
+    const S = {
+        wide:  [[120, 130, 260], [0, 25, -110]],
+        dam:   [[0, DAM_TOP + 45, DAM_Z + 120], [0, damBase + 8, DAM_Z - 60]],
+        town:  [[130, 60, 240], [70, 5, 110]],
+        slope: [[70, 80, -30], [0, 30, -150]],
+        flood: [[85, 55, 115], [10, 0, 10]],
+        sky:   [[120, 40, 250], [70, 30, 110]],
+    };
     async function landslide() {
         await tween(1.2, k => { scar.material.opacity = k; });
-        kit.puff([20, 18, -165], 30, '160,130,100');
-        await tween(1.6, k => { dam.scale.y = Math.max(.01, k); dam.position.y = 11 * k; }, t => t * t);
-        await tween(2.5, k => { lakeLevel = 10 * k; setLake(lakeLevel); });
+        kit.puff([28, damBase + 20, DAM_Z], 30, '160,130,100');
+        await tween(1.6, k => { dam.scale.y = Math.max(.01, k); dam.position.y = damBase + 13 * k; }, t => t * t);
+        await tween(2.5, k => { lakeLevel = damBase + 14 * k; setLake(lakeLevel); });
     }
     async function evacuate(all) {
         await tween(3.5, k => dots.forEach(d => {
@@ -1396,10 +1486,15 @@ function buildMataian() {
         if (!all) { blink = true; dots.forEach(d => { if (d.stays) d.m.material.color.setHex(0xffa060); }); }
     }
     async function rise(to) { const from = lakeLevel; await tween(2.5, k => { lakeLevel = from + (to - from) * k; setLake(lakeLevel); }); }
+    // 溢流 → 泥流沿河谷沖刷而下 → （沖斷橋梁、衝破堤防、淹進市區）
     async function surge({ breakBridge = true, intoTown = true } = {}) {
-        overflowOn = true; flash(); camShake = .8;
-        moveCamera(...S.flood, 3.5);
-        await tween(3.2, k => setMud(-148 + 420 * k), t => t);
+        overflowOn = true;
+        moveCamera(...S.slope, 2.5);
+        await tween(4.2, k => { frontZ = Z0 + (-20 - Z0) * k; setFlow(frontZ); }, t => t * t * .5 + t * .5);   // 沿陡坡往下沖
+        flash(); camShake = .7;
+        moveCamera(...S.flood, 2.5);
+        await tween(2.4, k => { frontZ = -20 + (Z1 - -20) * k; setFlow(frontZ); }, t => t);                   // 衝到平原
+        frontZ = null;
         if (breakBridge) { kit.puff([0, 6, 20], 25, '140,110,80'); await tween(1, k => { deck.rotation.z = .5 * k; deck.position.y = 5.5 - 4 * k; piers[1].rotation.z = .7 * k; }); }
         if (intoTown) {
             breach.visible = false; kit.puff([19, 3, 35], 25, '140,110,80');
@@ -1409,23 +1504,15 @@ function buildMataian() {
             dots.forEach(d => { if (d.stays) d.m.visible = false; });
         }
     }
-
-    const S = {
-        wide:  [[140, 90, 260], [20, 0, -40]],
-        dam:   [[0, 115, -10], [0, 5, -220]],
-        town:  [[130, 60, 240], [70, 5, 110]],
-        flood: [[80, 55, 110], [10, 0, 10]],
-        sky:   [[120, 40, 250], [70, 30, 110]],
-    };
     return {
         scene, kit, reset,
         intro: '2025・09 ・ 花蓮 馬太鞍溪上游',
         prefix: {},
-        shots: { wide: S.wide, beats: [S.dam, S.town, S.dam, S.flood, S.sky] },
+        shots: { wide: S.wide, beats: [S.dam, S.town, S.dam, S.slope, S.sky] },
         beats: [
             landslide,
             () => evacuate(false),
-            async () => { await rise(21); overflowOn = true; await wait(1.5); },
+            async () => { await rise(DAM_TOP + .8); overflowOn = true; await wait(1.5); },
             () => surge(),
             async () => { overflowOn = false; await dimmer.dim(0x2a3038); kit.lanternsOn(true); },
         ],
@@ -1439,37 +1526,254 @@ function buildMataian() {
             if (k === 0) {
                 moveCamera(...S.dam, 2);
                 await landslide();
-                spill.visible = true; await rise(5);
+                spill.visible = true; await rise(damBase + 6);
                 return { title: '湖水被安全引走', text: '颱風的雨一樣大，但湖水位已經降低，沒有漫過壩頂。下游的光復鄉平安度過。' };
             }
             if (k === 1) {
                 moveCamera(...S.town, 2);
                 await evacuate(true);
-                await rise(21);
+                moveCamera(...S.dam, 2);
+                await rise(DAM_TOP + .8);
                 await surge();
                 return { title: '洪水來了，但人都平安', text: '洪水仍然淹進市區，但所有居民都已撤離到避難處所。連鎖反應在奪走人命之前中斷。' };
             }
             moveCamera(...S.town, 2);
             await tween(1.2, t => { levee.scale.y = 1 + t; levee.position.y = 2 + 2 * t; breach.scale.y = 1 + t; breach.position.y = 2 + 2 * t; });
-            levee.material.emissive.setHex(0x1f8a4c); breach.material.emissive = new THREE.Color(0x1f8a4c);
-            await rise(21);
+            levee.material.emissive.setHex(0x1f8a4c); breach.material.emissive.setHex(0x1f8a4c);
+            moveCamera(...S.dam, 2);
+            await rise(DAM_TOP + .8);
             await surge({ breakBridge: false, intoTown: false });
             return { title: '洪水留在河道裡', text: '泥流沿著河道流過，被加高加固的堤防擋在市區之外。' };
         },
         update(dt) {
             time += dt;
             kit.update(dt);
-            overflow.forEach(o => {
+            ftex.offset.y -= dt * FLOW_SPEED;         // 泥流表面往下游流動
+            ftex2.offset.y -= dt * .25; ftex2.offset.x += dt * .12;
+            spray.forEach(o => {
+                if (o.head) {   // 浪頭的飛沫
+                    if (frontZ === null) { o.s.material.opacity = Math.max(0, o.s.material.opacity - dt * 2); return; }
+                    const z = frontZ - Math.random() * 6;
+                    o.s.position.set(o.x * .3, mataianFloor(z) + 3 + Math.random() * 5, z);
+                    o.s.material.opacity = .8; o.s.scale.setScalar(6 + Math.random() * 6);
+                    return;
+                }
                 if (!overflowOn) { o.s.material.opacity = Math.max(0, o.s.material.opacity - dt); return; }
-                o.t = (o.t + dt * .5) % 1;
-                o.s.position.set(o.x, 22 - o.t * 18, -150 + o.t * 30);
-                o.s.material.opacity = .7 * (1 - o.t);
+                o.t = (o.t + dt * .6) % 1;   // 越過壩頂往下落的水花
+                o.s.position.set(o.x * .5, DAM_TOP + 2 - o.t * 22, DAM_Z + 14 + o.t * 26);
+                o.s.material.opacity = .75 * (1 - o.t);
             });
             if (blink) dots.forEach(d => { if (d.stays) d.m.visible = Math.sin(time * 6) > -.3; });
             const pos = rain.geometry.attributes.position;
-            for (let i = 0; i < rainN; i++) { let y = pos.getY(i) - dt * 60; if (y < 0) y += 120; pos.setY(i, y); }
+            for (let i = 0; i < rainN; i++) { let y = pos.getY(i) - dt * 60; if (y < 0) y += 160; pos.setY(i, y); }
             pos.needsUpdate = true;
         },
+    };
+}
+
+// ═══════════════════════════════════════════════
+// 場景：普悠瑪列車・新馬站彎道（象徵手法，不呈現人物傷亡）
+// 軌道：先直線往 -z，再向右轉進新馬站彎道（依調查：第1節車廂右側車輪浮起，向左傾覆）
+// ═══════════════════════════════════════════════
+function buildPuyuma() {
+    const scene = new THREE.Scene();
+    const sun = makeSky(scene, 14, 245, { turbidity: 6, rayleigh: 1.6 });
+    scene.fog = new THREE.FogExp2(0xbfc8cf, 0.0022);
+    scene.environmentIntensity = .5;
+    const hemi = new THREE.HemisphereLight(0xe6eeff, 0x3a4a2e, .9);
+    const dl = new THREE.DirectionalLight(0xffe6c4, 2.3); dl.position.copy(sun).multiplyScalar(300);
+    scene.add(hemi, dl);
+    // 稻田
+    const fcv = document.createElement('canvas'); fcv.width = fcv.height = 64;
+    const fgc = fcv.getContext('2d'); fgc.fillStyle = '#5f8a3e'; fgc.fillRect(0, 0, 64, 64);
+    fgc.strokeStyle = '#4c7331'; fgc.lineWidth = 2; for (let i = 0; i < 64; i += 8) { fgc.beginPath(); fgc.moveTo(0, i); fgc.lineTo(64, i); fgc.stroke(); }
+    fgc.strokeStyle = '#7a8a5a'; fgc.lineWidth = 3; fgc.strokeRect(0, 0, 64, 64);
+    const ftx = new THREE.CanvasTexture(fcv); ftx.wrapS = ftx.wrapT = THREE.RepeatWrapping; ftx.repeat.set(40, 40); ftx.colorSpace = THREE.SRGBColorSpace;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshStandardMaterial({ map: ftx, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; scene.add(ground);
+    for (let i = 0; i < 12; i++) { const m = mountain(70 + Math.random() * 60, 90 + Math.random() * 90, 0x3a5a3c, i + 50); m.position.set(-260 - Math.random() * 200, m.position.y, -300 + i * 70); scene.add(m); }
+
+    // 軌道路徑
+    const L1 = 420, R = 110, ARC = THREE.MathUtils.degToRad(85), CX = R;
+    function pathAt(s) {
+        if (s <= L1) return { p: new THREE.Vector3(0, 0, L1 - s), h: new THREE.Vector3(0, 0, -1) };
+        const th = Math.min((s - L1) / R, ARC);
+        const p = new THREE.Vector3(CX - R * Math.cos(th), 0, -R * Math.sin(th));
+        const h = new THREE.Vector3(Math.sin(th), 0, -Math.cos(th));
+        if (s - L1 > R * ARC) p.addScaledVector(h, s - L1 - R * ARC);
+        return { p, h };
+    }
+    const TOTAL = L1 + R * ARC + 300;
+    // 鐵軌與枕木
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x8d8f93, metalness: .8, roughness: .35 });
+    for (const off of [-.75, .75]) {
+        const pts = [];
+        for (let s = -60; s <= TOTAL; s += 6) { const { p, h } = pathAt(Math.max(0, s)); if (s < 0) p.z += -s; pts.push(p.clone().add(new THREE.Vector3(-h.z, 0, h.x).multiplyScalar(off)).setY(.35)); }
+        scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 300, .12, 5), railMat));
+    }
+    const nS = Math.floor(TOTAL / 1.3), sleepers = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, .2, .45), new THREE.MeshStandardMaterial({ color: 0x5b4a3a }), nS);
+    const d3 = new THREE.Object3D();
+    for (let i = 0; i < nS; i++) { const { p, h } = pathAt(i * 1.3); d3.position.copy(p).setY(.15); d3.rotation.set(0, Math.atan2(-h.x, -h.z), 0); d3.updateMatrix(); sleepers.setMatrixAt(i, d3.matrix); }
+    scene.add(sleepers);
+    // 新馬站月台與站名
+    const stationS = L1 + 35;
+    const platform = new THREE.Group(); scene.add(platform);
+    for (let i = 0; i < 14; i++) {
+        const { p, h } = pathAt(stationS + i * 5); const left = new THREE.Vector3(h.z, 0, -h.x);
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(6, 1.2, 5.4), new THREE.MeshStandardMaterial({ color: 0xb9b3a6, roughness: .9 }));
+        seg.position.copy(p).addScaledVector(left, -5.5).setY(.6); seg.rotation.y = Math.atan2(-h.x, -h.z); platform.add(seg);
+    }
+    const signAt = pathAt(stationS + 30), sLeft = new THREE.Vector3(signAt.h.z, 0, -signAt.h.x);
+    const stSign = new THREE.Mesh(new THREE.PlaneGeometry(12, 3), new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide,
+        map: textTexture([{ text: '新馬站', font: '700 150px "Noto Serif TC", serif', y: 128, color: '#ffffff', blur: 8 }], { w: 1024, h: 256, bg: 'rgba(20,60,120,.9)' }) }));
+    stSign.position.copy(signAt.p).addScaledVector(sLeft, -9).setY(6); stSign.rotation.y = Math.atan2(-signAt.h.x, -signAt.h.z) + Math.PI / 2; scene.add(stSign);
+    // 限速 75 標誌（彎道入口前）
+    const lim = new THREE.Mesh(new THREE.CircleGeometry(2.4, 32), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide,
+        map: textTexture([{ text: '75', font: '900 300px "Cormorant Garamond", serif', y: 270, color: '#111111', glow: false, blur: 0 }], { w: 512, h: 512, bg: '#ffffff' }) }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.4, 2.9, 32), new THREE.MeshBasicMaterial({ color: 0xd62828, side: THREE.DoubleSide }));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 7, 6), new THREE.MeshStandardMaterial({ color: 0x777777 }));
+    pole.position.set(4.5, 3.5, 60); lim.position.set(4.5, 7.5, 60.05); ring.position.copy(lim.position);
+    scene.add(pole, lim, ring);
+
+    // 列車：8 節，白色車身、紅色車頭與腰帶
+    const white = new THREE.MeshStandardMaterial({ color: 0xf3f3f1, roughness: .35, metalness: .2 });
+    const red = new THREE.MeshStandardMaterial({ color: 0xc1272d, roughness: .4 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: .1, metalness: .6 });
+    const CAR = 20.5, cars = [];
+    const warnMat = new THREE.MeshStandardMaterial({ color: 0x331111, emissive: 0xff2a2a, emissiveIntensity: 0 });
+    for (let i = 0; i < 8; i++) {
+        const c = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.4, 20), white); body.position.y = 2.3; c.add(body);
+        const band = new THREE.Mesh(new THREE.BoxGeometry(3.26, .5, 20.02), red); band.position.y = 1.5; c.add(band);
+        const win = new THREE.Mesh(new THREE.BoxGeometry(3.24, .9, 18), glass); win.position.y = 2.9; c.add(win);
+        if (i === 0) {
+            const nose = new THREE.Mesh(new THREE.CylinderGeometry(0, 2.2, 4.4, 4, 1), red);
+            nose.rotation.set(-Math.PI / 2, Math.PI / 4, 0); nose.scale.set(1, 1, .75); nose.position.set(0, 2.1, -12); c.add(nose);
+        }
+        if (i === 0 || i === 7) {   // 主風泵（第1、8節）
+            const pump = new THREE.Mesh(new THREE.BoxGeometry(2, .6, 3), warnMat); pump.position.set(0, 4.3, 3); c.add(pump);
+        }
+        scene.add(c); cars.push(c);
+    }
+    const pumpLabel = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false,
+        map: textTexture([{ text: '主風泵故障', font: '700 110px "Noto Serif TC", serif', y: 90, color: '#ffb4a8', blur: 10 }], { w: 1024, h: 180 }) }));
+    pumpLabel.scale.set(14, 2.5, 1); scene.add(pumpLabel);
+    // ATP 自動防護（藍色防護罩）
+    const shieldMat = new THREE.MeshBasicMaterial({ color: 0x5ab8ff, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending });
+    const shield = new THREE.Mesh(new THREE.BoxGeometry(5.5, 6, 8 * CAR + 4), shieldMat); scene.add(shield);
+    const atpTexOn = textTexture([{ text: 'ATP 自動防護：開啟', font: '700 90px "Noto Serif TC", serif', y: 90, color: '#bfe6ff', blur: 10 }], { w: 1024, h: 180 });
+    const atpTexOff = textTexture([{ text: 'ATP：已被隔離', font: '700 90px "Noto Serif TC", serif', y: 90, color: '#ff9f9f', blur: 10 }], { w: 1024, h: 180 });
+    const atpLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map: atpTexOn, transparent: true, depthWrite: false })); atpLabel.scale.set(16, 2.8, 1); scene.add(atpLabel);
+
+    let head = 120, derail = 0, speed = 0, atpOn = true, follow = null;
+    const S0 = 120;
+    function placeTrain() {
+        cars.forEach((c, i) => {
+            const { p, h } = pathAt(head - i * CAR - CAR / 2);
+            const yaw = Math.atan2(-h.x, -h.z);
+            const k = THREE.MathUtils.clamp(derail * 1.3 - i * .05, 0, 1);
+            const left = new THREE.Vector3(h.z, 0, -h.x);
+            c.position.copy(p).addScaledVector(left, k * (3 + i * .6)).setY(k * .8);
+            c.rotation.set(0, yaw + (i % 2 ? 1 : -1) * .22 * k, k * (1.35 - i * .06));
+        });
+        const mid = pathAt(head - 4 * CAR);
+        shield.position.copy(mid.p).setY(2.5); shield.rotation.y = Math.atan2(-mid.h.x, -mid.h.z);
+        shield.visible = atpOn && derail === 0;
+        const f = pathAt(head - CAR / 2).p;
+        atpLabel.position.set(f.x, 9, f.z);
+        pumpLabel.position.set(f.x, 12.5, f.z);
+    }
+    const hud = $('hud');
+    function showSpeed(v) {
+        speed = v;
+        hud.hidden = false;
+        const over = v > 75;
+        hud.innerHTML = `<span class="lab">速度</span><b style="color:${over ? '#ff8a80' : '#9dffb0'}">${Math.round(v)}</b><span class="lab">km/h</span><span class="lim">限速 75</span>`;
+    }
+
+    const kit = makeKit(scene, { domX: -120, domZ: 170, lanterns: 18, area: { x: 20, z: -40, w: 40, d: 40, y: 3 } });
+    const dimmer = makeDimmer(scene, [hemi, dl]);
+    function reset() {
+        kit.reset(); dimmer.restore();
+        head = S0; derail = 0; atpOn = true; follow = null;
+        warnMat.emissiveIntensity = 0; warnMat.emissive.setHex(0xff2a2a);
+        pumpLabel.material.opacity = 0; atpLabel.material.map = atpTexOn; atpLabel.material.opacity = 1; shieldMat.opacity = .16;
+        hud.hidden = true; placeTrain();
+    }
+    reset();
+
+    const S = {
+        wide:  [[-90, 70, 330], [30, 0, 60]],
+        train: [[26, 12, 330], [0, 3, 290]],
+        curve: [[-34, 16, 28], [14, 0, -36]],
+        sky:   [[-50, 22, 40], [14, 18, -40]],
+    };
+    // 列車沿軌道行駛：從 s0 開到 s1，速度由 v0 變到 v1（km/h，只影響顯示）
+    function drive(s1, sec, v0, v1, easing = t => t) {
+        const s0 = head;
+        return tween(sec, k => { head = s0 + (s1 - s0) * k; showSpeed(v0 + (v1 - v0) * k); }, easing);
+    }
+    async function crash() {
+        flash(); camShake = 1.2;
+        kit.puff(pathAt(head).p.toArray(), 30, '190,180,165');
+        const s0 = head;
+        await tween(2, k => { head = s0 + 22 * k; derail = k; showSpeed(140 * (1 - k)); }, t => 1 - (1 - t) * (1 - t));
+        hud.hidden = true;
+    }
+    return {
+        scene, kit, reset,
+        intro: '2018・10・21 ・ 宜蘭 蘇澳 新馬站',
+        prefix: { 3: '約 16:50，' },
+        shots: { wide: S.wide, beats: [S.train, S.train, S.train, S.curve, S.sky] },
+        beats: [
+            async () => { pumpLabel.material.opacity = 1; await tween(2.4, k => { warnMat.emissiveIntensity = 2.5 * Math.sin(k * Math.PI * 5) ** 2; }); warnMat.emissiveIntensity = 1.6; },
+            async () => {
+                await tween(1.6, k => { shieldMat.opacity = .16 * (Math.sin(k * Math.PI * 7) > 0 ? 1 : .2); });
+                atpOn = false; atpLabel.material.map = atpTexOff; atpLabel.material.needsUpdate = true;
+                await wait(1);
+            },
+            async () => { follow = [18, 9, 34]; await drive(L1 - 30, 4.5, 90, 140, t => t * t); },
+            async () => {
+                follow = null; moveCamera(...S.curve, 1.5);
+                await drive(L1 + 34, 1.4, 140, 140);
+                await crash();
+            },
+            async () => { await dimmer.dim(0x2a2f3a); kit.lanternsOn(true); },
+        ],
+        memorial: '升起的 18 盞燈，代表 18 條再也回不了家的生命。',
+        told: {
+            1: '若確實維修保養列車，主風泵不會一再故障，司機員也不會在行車途中手忙腳亂、做出錯誤判斷。',
+            2: '若 ATP 沒有被隔離，列車一超速就會自動煞車，不可能以接近兩倍的速限衝進彎道。',
+            3: '若司機員遵守速限、在彎道前減速到每小時75公里以下，列車就能安全通過彎道。',
+        },
+        async safe(k) {
+            if (k === 0) { await tween(1, t => { warnMat.emissive.setRGB(0, .9, .4); warnMat.emissiveIntensity = 1.2 * t; }); }
+            follow = [18, 9, 34];
+            if (k <= 1) {   // ATP 仍在：一超速就自動煞車
+                await drive(L1 - 120, 3, 90, 118, t => t * t);
+                await tween(.8, t => { shieldMat.opacity = .16 + .3 * Math.sin(t * Math.PI * 4) ** 2; });
+                await drive(L1 - 30, 3, 118, 75, t => 1 - (1 - t) * (1 - t));
+            } else {        // 司機員依規定減速
+                await drive(L1 - 120, 3, 90, 120, t => t * t);
+                await drive(L1 - 30, 3.5, 120, 75, t => 1 - (1 - t) * (1 - t));
+            }
+            follow = null;
+            await moveCamera(...S.curve, 1.5);
+            return {
+                title: '列車平安通過新馬站', text: '列車以安全的速度通過彎道，車上366位旅客都平安抵達目的地。',
+                after: async () => { await drive(L1 + R * ARC + 120, 7, 75, 75); hud.hidden = true; },
+            };
+        },
+        update(dt) {
+            kit.update(dt);
+            placeTrain();
+            if (follow) {
+                const { p, h } = pathAt(head);
+                camera.position.set(p.x + follow[0], follow[1], p.z + follow[2]);
+                camLook.copy(p).addScaledVector(h, 20).setY(2);
+            }
+        },
+        leave() { hud.hidden = true; },
     };
 }
 
@@ -1505,10 +1809,9 @@ async function goStop(i) {
         const ev = EVENTS[stopIndex - 1];
         await say(`${ev.year} ・ ${ev.title}`, storyData[ev.key].chapters[0].text);
     }
-    const nav = [
-        { label: '◀ 上一站', onClick: () => goStop(stopIndex - 1) },
-        { label: '下一站 ▶', onClick: () => goStop(stopIndex + 1) },
-    ];
+    const nav = [];
+    if (stopIndex > 0) nav.push({ label: '◀ 上一站', onClick: () => goStop(stopIndex - 1) });             // 起點不需要上一站
+    if (stopIndex < stops.length - 1) nav.push({ label: stopIndex === 0 ? '啟航 ▶' : '下一站 ▶', onClick: () => goStop(stopIndex + 1) });   // 最後一站不需要下一站
     if (stopIndex > 0) {
         const ev = EVENTS[stopIndex - 1];
         nav.splice(1, 0, ev.has3d
@@ -1557,7 +1860,7 @@ canvas.addEventListener('click', e => {
 canvas.addEventListener('pointermove', e => { canvas.style.cursor = gateAt(e) >= 0 ? 'pointer' : ''; });
 
 // ── 3D 事故現場：通用流程（骨牌依序倒下 → 追思 → 抽掉一張骨牌）──
-const SCENES3D = { case2: buildParty, case3: buildQuake, taroko: buildTaroko, mataian: buildMataian };
+const SCENES3D = { case2: buildParty, case3: buildQuake, puyuma: buildPuyuma, taroko: buildTaroko, mataian: buildMataian };
 const built3d = {};
 let cur = null, curKey = null;
 
@@ -1659,6 +1962,7 @@ async function replayWithout(k) {
 
 async function backToRiver() {
     runId++;
+    cur?.leave?.();
     tweens.clear();   // 停止事故現場裡還在進行的動畫
     actions([]);
     $('btn-river').hidden = true;

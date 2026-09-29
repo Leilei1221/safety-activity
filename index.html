@@ -626,7 +626,7 @@ function renderHome() {
             <div class="p-6 sm:p-8 relative">
                 <div class="text-xs tracking-[.4em] text-yellow-200 mb-2">THE RIVER OF TIME ・ 3D 試作版</div>
                 <div class="text-2xl sm:text-3xl font-bold mb-2">時間之河：沿著年代，航向每一場事故</div>
-                <p class="text-sm sm:text-base text-gray-100">搭船穿越時間線，走進八仙、花蓮地震、太魯閣號、光復堰塞湖的事故現場，親眼看見五張骨牌如何一張張倒下。</p>
+                <p class="text-sm sm:text-base text-gray-100">搭船穿越時間線，走進八仙、花蓮地震、普悠瑪、太魯閣號、光復堰塞湖的事故現場，親眼看見五張骨牌如何一張張倒下。</p>
                 <span class="inline-block mt-4 bg-yellow-300 text-gray-900 font-bold py-2 px-5 rounded-full group-hover:bg-yellow-200">啟程 →</span>
             </div>
         </a>
@@ -821,7 +821,7 @@ function renderStory(caseKey) {
         </h3>
         <p class="text-gray-600 mb-5">按「▶ 自動播放」或點下方時間點，一幕一幕看事故怎麼發生。</p>
         ${sd.pending ? `<div class="mb-4 p-3 rounded-lg bg-yellow-100 border border-yellow-400 text-yellow-800 text-sm font-semibold">【請老師確認】本案例的日期、地點與新聞出處尚未查證，以下故事僅依教材摘要改寫。</div>` : ''}
-        ${['case2', 'case3', 'taroko', 'mataian'].includes(caseKey) ? `<a href="timeline.html#${caseKey}" class="flex items-center justify-between gap-3 mb-4 p-4 rounded-xl text-white" style="background:linear-gradient(120deg,#0b1d2a,#1d4e5f)">
+        ${['case2', 'case3', 'puyuma', 'taroko', 'mataian'].includes(caseKey) ? `<a href="timeline.html#${caseKey}" class="flex items-center justify-between gap-3 mb-4 p-4 rounded-xl text-white" style="background:linear-gradient(120deg,#0b1d2a,#1d4e5f)">
             <span><strong>✨ 3D 因果骨牌動畫</strong>：在立體的事故現場看五張骨牌一張張倒下，還能試著「抽掉一張」。</span>
             <span class="shrink-0 bg-yellow-300 text-gray-900 font-bold py-2 px-4 rounded-full">觀看 →</span></a>` : ''}
         <div id="story-stage"></div>

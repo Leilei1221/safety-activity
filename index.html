@@ -510,7 +510,8 @@ async function playTransit(caseKey, renderFn) {
 let currentRoute = { page: null, tab: null };
 
 function parseRoute() {
-    const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+    // 同時接受「#/taroko/sim」與 3D 頁面使用的簡寫「#taroko.sim」
+    const parts = location.hash.replace(/^#\/?/, '').split(/[/.]/).filter(Boolean);
     if (parts[0] && cases[parts[0]]) {
         return { page: parts[0], tab: TABS.includes(parts[1]) ? parts[1] : 'story' };
     }
@@ -614,7 +615,7 @@ function renderHome() {
             <div class="p-6 sm:p-8 relative">
                 <div class="text-xs tracking-[.4em] text-yellow-200 mb-2">THE RIVER OF TIME ・ 3D 試作版</div>
                 <div class="text-2xl sm:text-3xl font-bold mb-2">時間之河：沿著年代，航向每一場事故</div>
-                <p class="text-sm sm:text-base text-gray-100">搭船穿越時間線，並在太魯閣號事故現場，親眼看見五張骨牌如何一張張倒下。</p>
+                <p class="text-sm sm:text-base text-gray-100">搭船穿越時間線，走進八仙、花蓮地震、太魯閣號、光復堰塞湖的事故現場，親眼看見五張骨牌如何一張張倒下。</p>
                 <span class="inline-block mt-4 bg-yellow-300 text-gray-900 font-bold py-2 px-5 rounded-full group-hover:bg-yellow-200">啟程 →</span>
             </div>
         </a>
@@ -809,7 +810,7 @@ function renderStory(caseKey) {
         </h3>
         <p class="text-gray-600 mb-5">按「▶ 自動播放」或點下方時間點，一幕一幕看事故怎麼發生。</p>
         ${sd.pending ? `<div class="mb-4 p-3 rounded-lg bg-yellow-100 border border-yellow-400 text-yellow-800 text-sm font-semibold">【請老師確認】本案例的日期、地點與新聞出處尚未查證，以下故事僅依教材摘要改寫。</div>` : ''}
-        ${caseKey === 'taroko' ? `<a href="timeline.html#taroko" class="flex items-center justify-between gap-3 mb-4 p-4 rounded-xl text-white" style="background:linear-gradient(120deg,#0b1d2a,#1d4e5f)">
+        ${['case2', 'case3', 'taroko', 'mataian'].includes(caseKey) ? `<a href="timeline.html#${caseKey}" class="flex items-center justify-between gap-3 mb-4 p-4 rounded-xl text-white" style="background:linear-gradient(120deg,#0b1d2a,#1d4e5f)">
             <span><strong>✨ 3D 因果骨牌動畫</strong>：在立體的事故現場看五張骨牌一張張倒下，還能試著「抽掉一張」。</span>
             <span class="shrink-0 bg-yellow-300 text-gray-900 font-bold py-2 px-4 rounded-full">觀看 →</span></a>` : ''}
         <div id="story-stage"></div>
@@ -1556,6 +1557,14 @@ document.addEventListener('submit', e => {
 // ═══════════════════════════════════════════════
 // 初始化
 // ═══════════════════════════════════════════════
+// 從 3D 時間之河過來：網址可能是「#taroko.sim」，或網址被清掉時改讀本機暫存的目的地
+(function consumeGoto() {
+    let saved = null;
+    try { saved = localStorage.getItem('sg_goto'); localStorage.removeItem('sg_goto'); } catch (_) {}
+    const m = location.hash.match(/^#([a-z0-9]+)\.(story|sim|domino|prevention|report)$/);
+    const target = m ? `#/${m[1]}/${m[2]}` : (!location.hash || location.hash === '#/' ? saved : null);
+    if (target) { try { history.replaceState(null, '', target); } catch (_) { location.hash = target; } }
+})();
 router();
 icons();
 let introSeen = false;

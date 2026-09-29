@@ -100,7 +100,7 @@
 </div>
 
 <div id="topbar">
-    <a class="btn" href="index.html#/">✕ 回到網站</a>
+    <a class="btn" id="site-link" href="index.html#/">✕ 回到網站</a>
     <div style="display:flex;gap:8px">
         <button class="btn" id="btn-music" title="開關背景音樂">♪ 音樂：開</button>
         <button class="btn" id="btn-quality" title="畫面太卡時可切換">畫質：高</button>
@@ -442,7 +442,9 @@ $('btn-music').onclick = () => music.toggle();
 // ═══════════════════════════════════════════════
 // 場景一：時間之河
 // ═══════════════════════════════════════════════
-const EVENTS = Object.keys(cases).map(key => ({ key, ...cases[key], has3d: key === 'taroko' }));
+const HAS3D = ['case2', 'case3', 'taroko', 'mataian'];   // 有 3D 因果骨牌場景的事件
+const SITE = ($('site-link')?.getAttribute('href') || 'index.html').split('#')[0];   // 平面版網址（跟著「回到網站」連結）
+const EVENTS = Object.keys(cases).map(key => ({ key, ...cases[key], has3d: HAS3D.includes(key) }));
 const GATE_GAP = 230, FIRST_GATE = -170;
 const gateZ = i => FIRST_GATE - i * GATE_GAP;
 const stops = [0, ...EVENTS.map((_, i) => gateZ(i) + 34)];
@@ -558,6 +560,92 @@ function buildRiver() {
         }
     };
 }
+
+// ═══════════════════════════════════════════════
+// 共用：事故現場的五張骨牌、追思燈與塵埃
+// ═══════════════════════════════════════════════
+const DOMINO_NAMES = ['環境因素', '人為疏失', '危險因素', '意外事故', '損失'];
+function makeKit(scene, { domX, domZ, y = 0, lanterns: nL, area }) {
+    const dominoes = DOMINO_NAMES.map((name, i) => {
+        const pivot = new THREE.Group();
+        const tex = textTexture([
+            { text: String(i + 1), font: '500 170px "Cormorant Garamond", serif', y: 190, color: '#f5d48a' },
+            { text: name, font: '700 110px "Noto Serif TC", serif', y: 420, blur: 10 },
+        ], { w: 512, h: 1024, bg: '#141a24' });
+        const face = new THREE.MeshStandardMaterial({ map: tex, roughness: .5, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .35 });
+        const side = new THREE.MeshStandardMaterial({ color: 0x1b2230, roughness: .6 });
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(3.2, 6.4, 1), [side, side, side, side, face, side]);
+        slab.position.set(-1.6, 3.2, 0); // 以右下角為支點
+        pivot.add(slab);
+        pivot.position.set(domX + i * 5.2 + 1.6, y, domZ);
+        pivot.rotation.y = -0.18;
+        scene.add(pivot);
+        return { pivot, slab, removed: false };
+    });
+    const base = new THREE.Mesh(new THREE.BoxGeometry(30, .6, 6), new THREE.MeshStandardMaterial({ color: 0x2a303a, roughness: .8 }));
+    base.position.set(domX + 11.5, y - .3, domZ + .5); base.rotation.y = -0.18; scene.add(base);
+    function fallDomino(i) {
+        const d = dominoes[i];
+        const target = (i === 4 || dominoes[i + 1]?.removed) ? -Math.PI / 2 : -1.05;
+        return tween(.9, k => { d.pivot.rotation.z = target * k; }, t => t * t);
+    }
+    // 追思燈：數量等於罹難人數
+    const lanterns = [];
+    const lanternMat = new THREE.SpriteMaterial({ map: glowTexture('255,210,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    for (let i = 0; i < nL; i++) {
+        const s = new THREE.Sprite(lanternMat.clone()); s.scale.set(1.6, 1.6, 1); s.visible = false; scene.add(s);
+        lanterns.push({ s, x: area.x + (Math.random() - .5) * area.w, z: area.z + (Math.random() - .5) * area.d, sp: .6 + Math.random() * .8, ph: Math.random() * 6 });
+    }
+    const y0 = area.y ?? 2;
+    const dust = [];
+    const dustMats = {};
+    function puff(at, n = 14, color = '190,170,140') {
+        dustMats[color] = dustMats[color] || new THREE.SpriteMaterial({ map: glowTexture(color), transparent: true, opacity: .5, depthWrite: false });
+        for (let i = 0; i < n; i++) {
+            const s = new THREE.Sprite(dustMats[color].clone());
+            s.position.set(at[0] + (Math.random() - .5) * 4, at[1] + Math.random() * 2, at[2] + (Math.random() - .5) * 4);
+            s.scale.setScalar(2); scene.add(s);
+            dust.push({ s, life: 0, v: new THREE.Vector3((Math.random() - .5) * 2, 1 + Math.random() * 2, (Math.random() - .5) * 2) });
+        }
+    }
+    let time = 0, lanternOn = false;
+    return {
+        dominoes, fallDomino, puff,
+        dom: [[domX + 12, y + 7.5, domZ + 26], [domX + 12, y + 3.5, domZ - 2]],
+        lanternsOn(v) { lanternOn = v; if (!v) lanterns.forEach(l => l.s.visible = false); },
+        reset() {
+            dominoes.forEach(d => { d.pivot.rotation.z = 0; d.pivot.position.y = y; d.slab.visible = !d.removed; });
+            this.lanternsOn(false);
+        },
+        async lift(i) { const d = dominoes[i]; d.removed = true; await tween(1, t => { d.pivot.position.y = y + t * 9; }); d.slab.visible = false; },
+        update(dt) {
+            time += dt;
+            if (lanternOn) lanterns.forEach(l => {
+                l.s.visible = true;
+                l.s.position.set(l.x + Math.sin(time * .5 + l.ph) * .8, y0 + ((time * l.sp + l.ph * 5) % 60), l.z);
+                l.s.material.opacity = Math.min(1, (y0 + 60 - l.s.position.y) / 20);
+            });
+            for (let i = dust.length - 1; i >= 0; i--) {
+                const d = dust[i]; d.life += dt;
+                d.s.position.addScaledVector(d.v, dt); d.s.scale.setScalar(2 + d.life * 3);
+                d.s.material.opacity = Math.max(0, .5 - d.life * .25);
+                if (d.life > 2) { scene.remove(d.s); dust.splice(i, 1); }
+            }
+        },
+    };
+}
+// 追思時：場景轉暗
+function makeDimmer(scene, lights) {
+    const fog0 = scene.fog.color.clone(), i0 = lights.map(l => l.intensity);
+    return {
+        async dim(to = 0x2a2f3a) {
+            const f0 = scene.fog.color.clone(), f1 = new THREE.Color(to);
+            await tween(2.5, k => { scene.fog.color.lerpColors(f0, f1, k); lights.forEach((l, j) => l.intensity = i0[j] * (1 - .7 * k)); });
+        },
+        restore() { scene.fog.color.copy(fog0); lights.forEach((l, j) => l.intensity = i0[j]); },
+    };
+}
+function flash() { $('flash').style.opacity = .85; setTimeout(() => $('flash').style.opacity = 0, 180); }
 
 // ═══════════════════════════════════════════════
 // 場景二：太魯閣號・因果骨牌（象徵手法，不呈現人物傷亡）
@@ -684,125 +772,635 @@ function buildTaroko() {
         });
     }
 
-    // 五張巨大骨牌
-    const dominoes = cases.taroko.domino.map((d, i) => {
-        const pivot = new THREE.Group();
-        const tex = textTexture([
-            { text: String(i + 1), font: '500 170px "Cormorant Garamond", serif', y: 190, color: '#f5d48a' },
-            { text: ['環境因素', '人為疏失', '危險因素', '意外事故', '損失'][i], font: '700 110px "Noto Serif TC", serif', y: 420, blur: 10 },
-        ], { w: 512, h: 1024, bg: '#141a24' });
-        const face = new THREE.MeshStandardMaterial({ map: tex, roughness: .5, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .35 });
-        const side = new THREE.MeshStandardMaterial({ color: 0x1b2230, roughness: .6 });
-        const slab = new THREE.Mesh(new THREE.BoxGeometry(3.2, 6.4, 1), [side, side, side, side, face, side]);
-        slab.position.set(-1.6, 3.2, 0); // 以右下角為支點
-        pivot.add(slab);
-        pivot.position.set(-46 + i * 5.2 + 1.6, 0, 58);
-        pivot.rotation.y = -0.18;
-        scene.add(pivot);
-        return { pivot, slab, removed: false };
-    });
-    const dominoBase = new THREE.Mesh(new THREE.BoxGeometry(30, .6, 6), new THREE.MeshStandardMaterial({ color: 0x2a303a, roughness: .8 }));
-    dominoBase.position.set(-34.5, -.3, 58.5); dominoBase.rotation.y = -0.18; scene.add(dominoBase);
-    function fallDomino(i, lean = true) {
-        const d = dominoes[i];
-        const target = (i === 4 || !lean || dominoes[i + 1]?.removed) ? -Math.PI / 2 : -1.05;
-        return tween(.9, k => { d.pivot.rotation.z = target * k; }, t => t * t);
-    }
-
-    // 追思燈
-    const lanterns = [];
-    const lanternMat = new THREE.SpriteMaterial({ map: glowTexture('255,210,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    for (let i = 0; i < 49; i++) {
-        const s = new THREE.Sprite(lanternMat.clone()); s.scale.set(1.6, 1.6, 1); s.visible = false; scene.add(s);
-        lanterns.push({ s, x: (Math.random() - .5) * 30, z: 10 + Math.random() * 40, sp: .6 + Math.random() * .8, ph: Math.random() * 6 });
-    }
-
-    const dust = [];
-    const dustMat = new THREE.SpriteMaterial({ map: glowTexture('190,170,140'), transparent: true, opacity: .5, depthWrite: false });
-    function puff(at, n = 14) {
-        for (let i = 0; i < n; i++) {
-            const s = new THREE.Sprite(dustMat.clone());
-            s.position.set(at[0] + (Math.random() - .5) * 4, at[1] + Math.random() * 2, at[2] + (Math.random() - .5) * 4);
-            s.scale.setScalar(2); scene.add(s);
-            dust.push({ s, life: 0, v: new THREE.Vector3((Math.random() - .5) * 2, 1 + Math.random() * 2, (Math.random() - .5) * 2) });
-        }
-    }
+    const kit = makeKit(scene, { domX: -46, domZ: 58, lanterns: 49, area: { x: 0, z: 30, w: 30, d: 40 } });
+    const dimmer = makeDimmer(scene, [hemi, dl]);
+    const puff = kit.puff;
 
     function reset() {
-        dominoes.forEach(d => { d.pivot.rotation.z = 0; d.pivot.position.y = 0; d.slab.visible = !d.removed; });
+        kit.reset();
         lerpState(TRUCK_PARK, TRUCK_PARK, 0); strap.visible = false; fence.visible = false;
         armPivot.rotation.x = .35;
         trainHead = 480; derail = 0; placeTrain();
         slopeMat.emissive.setHex(0x000000);
-        lanterns.forEach(l => l.s.visible = false);
-        scene.fog.color.copy(fogColor); hemi.intensity = .9; dl.intensity = 2.4;
+        dimmer.restore();
     }
     reset();
 
-    let time = 0, lanternOn = false;
+    const S = {
+        wide:   [[-40, 36, 125], [2, 4, 14]],
+        slope:  [[-14, 20, 62], [14, 5, 24]],
+        slide:  [[-16, 10, 48], [6, 3, 22]],
+        track:  [[-10, 4.5, 80], [0, 3, 10]],
+        impact: [[-22, 12, 55], [0, 3, 12]],
+        sky:    [[40, 18, 95], [0, 22, 20]],
+    };
+    async function slopeWarn() { await tween(1.2, k => slopeMat.emissive.setRGB(.5 * Math.sin(k * Math.PI * 3) ** 2, .05, 0)); slopeMat.emissive.setRGB(.25, .02, 0); }
+    async function truckStall() {
+        await tween(1.4, k => lerpState(TRUCK_PARK, TRUCK_EDGE, k));
+        await tween(1.4, k => lerpState(TRUCK_EDGE, TRUCK_RAMP, k));
+        puff([15, 8, 27], 8);
+        await wait(.6);
+        strap.visible = true;
+        await tween(1, k => { armPivot.rotation.x = .35 - .3 * k; });
+    }
+    async function truckSlide(stopAtFence = false) {
+        const b = stopAtFence ? TRUCK_FENCE : TRUCK_TRACK;
+        strap.visible = false;
+        puff([13, 6, 27]);
+        await tween(1.6, k => lerpState(TRUCK_RAMP, b, k), t => t * t);
+        puff(b.p, 18);
+    }
+    async function trainCome(crash) {
+        const stopAt = crash ? 18.5 : -250, start = trainHead;
+        await tween(crash ? 3.2 : 6, k => { trainHead = start + (stopAt - start) * k; }, t => t);
+        if (!crash) return;
+        flash(); camShake = 1.2;
+        puff([0, 2, 18], 30);
+        truck.position.set(-4, .6, 6); truck.rotation.set(.4, 1.6, 1.2);
+        await tween(1.8, k => { trainHead = 18.5 - 40 * k; derail = k; }, t => 1 - (1 - t) * (1 - t));
+    }
+    function showFence() { fence.visible = true; return tween(.8, k => { fence.scale.y = k; }); }
+
     return {
-        scene, dominoes, reset,
+        scene, kit, reset,
+        intro: '2021・04・02 ・ 花蓮 清水隧道北口',
+        prefix: { 3: '約 09:28，' },
+        shots: { wide: S.wide, beats: [S.slope, S.slope, S.slide, S.track, S.sky] },
+        beats: [
+            slopeWarn,
+            truckStall,
+            async () => { await wait(1); await truckSlide(); },
+            async () => { moveCamera(...S.impact, 3.4); await trainCome(true); },
+            async () => { await dimmer.dim(); kit.lanternsOn(true); },
+        ],
+        memorial: '升起的 49 盞燈，代表 49 條再也回不了家的生命。',
+        told: {
+            1: '若邊坡有防護設施、便道依設計鋪設，大貨車就算熄火，也不會一路滑落到軌道上。',
+            2: '若沒有在停工期間違規進入工地，或車輛故障時交給專業業者處理並通報台鐵，大貨車就不會被硬拖而滑落。',
+            3: '若軌道旁有防護設施，或及時通報攔停列車，軌道上的危險就能在列車抵達前被排除。',
+        },
+        async safe(k) {
+            if (k === 0) { moveCamera(...S.slope, 2); await showFence(); }
+            if (k === 2) { await showFence(); await truckSlide(true); }
+            await wait(.8);
+            await moveCamera(...S.track, 2);
+            return {
+                title: '列車平安駛入隧道', text: '軌道淨空，408次列車和車上的每一個人，都能準時抵達目的地。',
+                after: async () => { moveCamera(...S.wide, 5); await trainCome(false); },
+            };
+        },
         update(dt) {
-            time += dt;
             sea.update(dt);
+            kit.update(dt);
             if (strap.visible) setStrap();
             placeTrain();
-            if (lanternOn) lanterns.forEach(l => {
-                l.s.visible = true;
-                l.s.position.set(l.x + Math.sin(time * .5 + l.ph) * .8, 2 + ((time * l.sp + l.ph * 5) % 60), l.z);
-                l.s.material.opacity = Math.min(1, (60 - l.s.position.y) / 20);
+        },
+    };
+}
+
+// ═══════════════════════════════════════════════
+// 場景：八仙樂園彩色派對（群眾以光點抽象呈現，不呈現人物傷亡）
+// ═══════════════════════════════════════════════
+function buildParty() {
+    const scene = new THREE.Scene();
+    const NIGHT = 0x0b0d1c;
+    scene.background = new THREE.Color(NIGHT);
+    scene.fog = new THREE.FogExp2(NIGHT, 0.005);
+    const hemi = new THREE.HemisphereLight(0x6a78c8, 0x10121c, .9);
+    const moon = new THREE.DirectionalLight(0xaab8ff, .6); moon.position.set(-40, 80, 60);
+    const pinkL = new THREE.PointLight(0xff7ad9, 80, 140, 1.4); pinkL.position.set(-14, 16, -20);
+    const blueL = new THREE.PointLight(0x5ad1ff, 80, 140, 1.4); blueL.position.set(14, 16, -20);
+    scene.add(hemi, moon, pinkL, blueL);
+    // 星空
+    const starPos = [];
+    for (let i = 0; i < 700; i++) { const t = Math.random() * Math.PI * 2, p = Math.random() * 1.2; starPos.push(Math.cos(t) * Math.cos(p) * 900, 60 + Math.sin(p) * 700, Math.sin(t) * Math.cos(p) * 900); }
+    const starGeo = new THREE.BufferGeometry(); starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, sizeAttenuation: false, fog: false })));
+
+    // 排空的泳池（池底）與四周池岸
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: 0x2c566a, roughness: .7 }));
+    floor.rotation.x = -Math.PI / 2; scene.add(floor);
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x5b6173, roughness: .9 });
+    const PW = 70, PD = 44;
+    for (const [x, z, w, d] of [[-PW / 2 - 40, 0, 80, 300], [PW / 2 + 40, 0, 80, 300], [0, PD / 2 + 40, PW, 80], [0, -PD / 2 - 40, PW, 80]]) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(w, 2, d), deckMat); b.position.set(x, 1, z); scene.add(b);
+    }
+    // 舞台與燈架
+    const stage = new THREE.Mesh(new THREE.BoxGeometry(36, 2.5, 12), new THREE.MeshStandardMaterial({ color: 0x1d2030, roughness: .6 }));
+    stage.position.set(0, 3.25, -PD / 2 - 6); scene.add(stage);
+    const truss = new THREE.MeshStandardMaterial({ color: 0x9aa0ad, metalness: .6, roughness: .4 });
+    for (const x of [-17, 17]) { const p = new THREE.Mesh(new THREE.BoxGeometry(.8, 13, .8), truss); p.position.set(x, 11, -PD / 2 - 2); scene.add(p); }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(35, .8, .8), truss); beam.position.set(0, 17, -PD / 2 - 2); scene.add(beam);
+    // 電腦燈（會發熱）
+    const lampLens = [], beams = [];
+    for (let i = 0; i < 7; i++) {
+        const x = -15 + i * 5;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), new THREE.MeshStandardMaterial({ color: 0x222633 }));
+        body.position.set(x, 16, -PD / 2 - 1.4); scene.add(body);
+        const lens = new THREE.Mesh(new THREE.CircleGeometry(.55, 16), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveIntensity: 5 }));
+        lens.position.set(x, 16, -PD / 2 - .68); scene.add(lens); lampLens.push(lens);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 22, 20, 1, true), new THREE.MeshBasicMaterial({
+            color: [0xff7ad9, 0x5ad1ff, 0xfff27a, 0x9dff9a][i % 4], transparent: true, opacity: .09, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+        cone.geometry.translate(0, -11, 0);
+        const pivot = new THREE.Group(); pivot.position.set(x, 16, -PD / 2 - .6); pivot.add(cone); scene.add(pivot);
+        beams.push({ pivot, ph: i * .9 });
+    }
+    // 群眾：以手環般的彩色光點表示
+    const N = 420, dotGeo = new THREE.SphereGeometry(.38, 6, 6);
+    const crowd = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), N);
+    const people = [];
+    const col = new THREE.Color();
+    for (let i = 0; i < N; i++) {
+        const p = { x: (Math.random() - .5) * 62, z: -16 + Math.random() * 36, ph: Math.random() * 6 };
+        p.home = { x: p.x, z: p.z };
+        people.push(p);
+        crowd.setColorAt(i, col.setHSL(Math.random(), .8, .65));
+    }
+    scene.add(crowd);
+    const m4 = new THREE.Matrix4();
+    let dance = 1, scatter = 0, crowdDim = 0;
+    const baseColors = people.map((_, i) => { const c = new THREE.Color(); crowd.getColorAt(i, c); return c; });
+
+    // 彩色粉塵雲
+    const PCOL = ['255,110,180', '255,220,90', '110,190,255', '140,255,170', '200,140,255', '255,160,90'];
+    const powderMats = PCOL.map(c => glowTexture(c));
+    const powder = [];
+    for (let i = 0; i < 160; i++) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: powderMats[i % PCOL.length], transparent: true, opacity: 0, depthWrite: false }));
+        const sc = 9 + Math.random() * 12; s.scale.set(sc, sc, 1);
+        s.position.set((Math.random() - .5) * 64, 2 + Math.random() * 7, -18 + Math.random() * 38);
+        scene.add(s); powder.push({ s, ph: Math.random() * 6, lim: Math.random() });
+    }
+    let powderLevel = 0, powderTarget = 0;
+    // 從舞台噴向人群的色粉
+    const jets = [];
+    for (let i = 0; i < 50; i++) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: powderMats[i % PCOL.length], transparent: true, opacity: 0, depthWrite: false }));
+        s.scale.set(4, 4, 1); scene.add(s); jets.push({ s, t: Math.random(), x: (Math.random() - .5) * 30 });
+    }
+    let jetsOn = false;
+    // 火焰前緣
+    const fireTex = glowTexture('255,150,50');
+    const fire = [];
+    for (let i = 0; i < 70; i++) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        s.scale.set(10, 10, 1); scene.add(s); fire.push({ s, x: -33 + (i % 35) * 1.9, dz: i < 35 ? 0 : -5 });
+    }
+    let fireZ = null;
+    // 高溫燈具的警示光暈
+    const hot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('255,90,40'), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    hot.scale.set(10, 10, 1); hot.position.set(-5, 16, -PD / 2); scene.add(hot);
+
+    const kit = makeKit(scene, { domX: -72, domZ: 36, y: 2, lanterns: 15, area: { x: 0, z: 2, w: 50, d: 30, y: 3 } });
+    const dimmer = makeDimmer(scene, [hemi, moon, pinkL, blueL]);
+    const lampColor = new THREE.Color();
+    function setLamps(hex) { lampLens.forEach(l => l.material.emissive.setHex(hex)); }
+
+    function reset() {
+        kit.reset(); dimmer.restore();
+        powderLevel = powderTarget = 0; jetsOn = false; fireZ = null; hot.material.opacity = 0;
+        dance = 1; scatter = 0; crowdDim = 0;
+        people.forEach(p => { p.x = p.home.x; p.z = p.home.z; });
+        fire.forEach(f => f.s.material.opacity = 0);
+        setLamps(0xffffff);
+    }
+    reset();
+
+    const S = {
+        wide:  [[0, 30, 80], [0, 2, -8]],
+        stage: [[22, 12, 18], [-2, 12, -24]],
+        crowd: [[30, 16, 40], [0, 3, 0]],
+        side:  [[-40, 14, 30], [0, 6, -6]],
+        sky:   [[0, 22, 78], [0, 24, -10]],
+    };
+    let time = 0;
+    return {
+        scene, kit, reset,
+        intro: '2015・06・27 ・ 新北市八里 八仙樂園',
+        prefix: { 3: '約 20:32，' },
+        shots: { wide: S.wide, beats: [S.stage, S.crowd, S.stage, S.side, S.sky] },
+        beats: [
+            async () => { powderTarget = .35; await tween(2, k => { lampColor.setRGB(1, 1 - .45 * k, 1 - .8 * k); setLamps(lampColor.getHex()); }); },
+            async () => { jetsOn = true; powderTarget = .85; await wait(3); },
+            async () => { powderTarget = 1; await tween(2.4, k => { hot.material.opacity = .5 + .5 * Math.sin(k * Math.PI * 6); }); hot.material.opacity = .9; },
+            async () => {
+                jetsOn = false; flash(); camShake = 1; fireZ = -24;
+                await tween(2, k => { fireZ = -24 + 50 * k; scatter = k; dance = 1 - k; });
+                powderTarget = 0; hot.material.opacity = 0;
+                await tween(1.5, k => { fire.forEach(f => f.s.material.opacity = 1 - k); crowdDim = k * .7; });
+                fireZ = null;
+            },
+            async () => { await dimmer.dim(0x05060c); kit.lanternsOn(true); },
+        ],
+        memorial: '升起的 15 盞燈，代表 15 位再也沒能回家的年輕人。',
+        told: {
+            1: '若法規禁止在活動中使用可燃性粉塵，現場就不會出現能被點燃的粉塵雲。',
+            2: '若主辦單位具備粉塵爆燃的知識、事先做好風險評估並停止噴灑色粉，危險就不會繼續累積。',
+            3: '若控制粉塵濃度、讓高溫燈具遠離粉塵，粉塵雲就無法被引燃。',
+        },
+        async safe(k) {
+            if (k === 0) { moveCamera(...S.crowd, 2); await wait(1.5); }
+            if (k === 1) { moveCamera(...S.crowd, 2); powderTarget = 0; await tween(2, t => { lampColor.setRGB(1, .55 + .45 * t, .2 + .8 * t); setLamps(lampColor.getHex()); }); }
+            if (k === 2) { moveCamera(...S.stage, 2); jetsOn = false; powderTarget = .25; await tween(2, t => setLamps(new THREE.Color().setRGB(1 - .5 * t, 1 - .1 * t, 1).getHex())); }
+            return {
+                title: '派對平安結束', text: '音樂落下，燈光依舊。每一位來迎接暑假的年輕人，都平安回到家。',
+                after: async () => { await moveCamera(...S.wide, 4); },
+            };
+        },
+        update(dt) {
+            time += dt;
+            kit.update(dt);
+            powderLevel += (powderTarget - powderLevel) * Math.min(1, dt * .8);
+            powder.forEach(p => {
+                p.s.material.opacity = p.lim < powderLevel ? Math.min(.55, powderLevel * .6) : 0;
+                p.s.position.x += Math.sin(time * .3 + p.ph) * dt * .8;
+                p.s.position.y += Math.cos(time * .4 + p.ph) * dt * .3;
             });
-            for (let i = dust.length - 1; i >= 0; i--) {
-                const d = dust[i]; d.life += dt;
-                d.s.position.addScaledVector(d.v, dt); d.s.scale.setScalar(2 + d.life * 3);
-                d.s.material.opacity = Math.max(0, .5 - d.life * .25);
-                if (d.life > 2) { scene.remove(d.s); dust.splice(i, 1); }
-            }
+            jets.forEach(j => {
+                if (!jetsOn) { j.s.material.opacity = Math.max(0, j.s.material.opacity - dt); return; }
+                j.t = (j.t + dt * .6) % 1;
+                j.s.position.set(j.x * (.3 + j.t), 4 + 10 * j.t * (1 - j.t) * 2, -PD / 2 + j.t * 34);
+                j.s.material.opacity = .8 * (1 - j.t);
+                j.s.scale.setScalar(3 + j.t * 9);
+            });
+            if (fireZ !== null) fire.forEach((f, i) => {
+                f.s.position.set(f.x + Math.sin(time * 9 + i) * .6, 2 + Math.abs(Math.sin(time * 7 + i)) * 4, fireZ + f.dz);
+                f.s.material.opacity = Math.max(f.s.material.opacity, .9);
+                f.s.scale.setScalar(8 + Math.sin(time * 11 + i) * 2);
+            });
+            beams.forEach(b => { b.pivot.rotation.x = .5 + Math.sin(time * .7 + b.ph) * .35; b.pivot.rotation.z = Math.sin(time * .5 + b.ph) * .5; });
+            people.forEach((p, i) => {
+                if (scatter > 0) { const dx = p.home.x, dz = p.home.z + 30; const len = Math.hypot(dx, dz) || 1; p.x = p.home.x + dx / len * 14 * scatter; p.z = p.home.z + dz / len * 10 * scatter; }
+                const y = .9 + Math.abs(Math.sin(time * 5 + p.ph)) * .7 * dance;
+                m4.makeTranslation(p.x, y, p.z); crowd.setMatrixAt(i, m4);
+                col.copy(baseColors[i]).multiplyScalar(1 - crowdDim); crowd.setColorAt(i, col);
+            });
+            crowd.instanceMatrix.needsUpdate = true; crowd.instanceColor.needsUpdate = true;
         },
-        // ── 各骨牌對應的事件 ──
-        async slopeWarn() { await tween(1.2, k => slopeMat.emissive.setRGB(.5 * Math.sin(k * Math.PI * 3) ** 2, .05, 0)); slopeMat.emissive.setRGB(.25, .02, 0); },
-        async truckStall() {
-            await tween(1.4, k => lerpState(TRUCK_PARK, TRUCK_EDGE, k));
-            await tween(1.4, k => lerpState(TRUCK_EDGE, TRUCK_RAMP, k));
-            puff([15, 8, 27], 8);
+    };
+}
+
+// ═══════════════════════════════════════════════
+// 場景：花蓮雲門翠堤大樓（象徵手法，不呈現人物傷亡）
+// ═══════════════════════════════════════════════
+function windowTexture(seed) {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#c9c1b3'; g.fillRect(0, 0, 256, 64);
+    let s = seed;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 6; i++) {
+        g.fillStyle = rnd() < .35 ? '#ffd98a' : '#26303d';
+        g.fillRect(12 + i * 41, 16, 28, 30);
+    }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function buildQuake() {
+    const scene = new THREE.Scene();
+    const NIGHT = 0x0a0e1c;
+    scene.background = new THREE.Color(NIGHT);
+    scene.fog = new THREE.FogExp2(NIGHT, 0.006);
+    const hemi = new THREE.HemisphereLight(0x8090c0, 0x141820, .9);
+    const moon = new THREE.DirectionalLight(0xc8d4ff, 1.1); moon.position.set(-60, 90, 80);
+    scene.add(hemi, moon);
+    const starPos = [];
+    for (let i = 0; i < 500; i++) { const t = Math.random() * Math.PI * 2, p = .15 + Math.random(); starPos.push(Math.cos(t) * Math.cos(p) * 900, Math.sin(p) * 700, Math.sin(t) * Math.cos(p) * 900); }
+    const starGeo = new THREE.BufferGeometry(); starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false, fog: false })));
+
+    const world = new THREE.Group(); scene.add(world);   // 地震時整個街區一起晃
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; world.add(ground);
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(14, 600), new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 1 }));
+    road.rotation.x = -Math.PI / 2; road.position.set(0, .02, 22); road.rotation.z = Math.PI / 2; world.add(road);
+    // 路燈
+    for (let i = -4; i <= 4; i++) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(.15, .2, 6, 6), new THREE.MeshStandardMaterial({ color: 0x3a3f4a })); post.position.set(i * 18, 3, 30); world.add(post);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(.4, 8, 8), new THREE.MeshStandardMaterial({ emissive: 0xffd9a0, emissiveIntensity: 5 })); bulb.position.set(i * 18, 6.1, 30); world.add(bulb);
+    }
+    // 周圍街景
+    for (let i = 0; i < 26; i++) {
+        const h = 6 + Math.random() * 22, w = 8 + Math.random() * 8;
+        const side = i % 2 ? 1 : -1;
+        const x = (i < 13 ? side * (28 + Math.random() * 70) : (Math.random() - .5) * 160);
+        const z = i < 13 ? -18 - Math.random() * 30 : -45 - Math.random() * 60;   // 都放在大樓後方，不擋鏡頭
+        const tex = windowTexture(i + 11); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, Math.round(h / 3));
+        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: .35, roughness: .9 }));
+        b.position.set(x, h / 2, z); world.add(b);
+    }
+    // 主角：12 層大樓
+    const B = new THREE.Group(); world.add(B);
+    const FH = 3, W = 16, D = 12;
+    // 一樓：樓板、柱子、結構牆
+    const f1 = new THREE.Group(); B.add(f1);
+    const concrete = new THREE.MeshStandardMaterial({ color: 0xbfb6a6, roughness: .85 });
+    const shop = new THREE.Mesh(new THREE.BoxGeometry(W - .4, FH - .2, D - .4), new THREE.MeshStandardMaterial({ color: 0x3a3226, emissive: 0xffc47a, emissiveIntensity: .25 }));
+    shop.position.y = FH / 2; f1.add(shop);
+    for (const [x, z] of [[-7.6, -5.6], [7.6, -5.6], [-7.6, 5.6], [7.6, 5.6], [0, -5.6], [0, 5.6]]) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(.8, FH, .8), concrete); c.position.set(x, FH / 2, z); f1.add(c);
+    }
+    const walls = [];
+    for (const [x, z, rx] of [[-3.8, 5.7, 0], [3.8, 5.7, 0], [-3.8, -5.7, 0], [3.8, -5.7, 0], [-7.7, 0, 1], [7.7, 0, 1], [0, 0, 1], [-3.8, 0, 0], [3.8, 0, 0]]) {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(rx ? .5 : 6.8, FH - .1, rx ? 10.4 : .5), new THREE.MeshStandardMaterial({ color: 0xb9ad9a, roughness: .9, transparent: true, emissive: 0x000000 }));
+        w.position.set(x, FH / 2, z); f1.add(w); walls.push(w);
+    }
+    // 耐震補強（抽掉骨牌後才出現）
+    const brace = new THREE.Group(); brace.visible = false; f1.add(brace);
+    const braceMat = new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x22aa55, emissiveIntensity: .9 });
+    for (const z of [6.1, -6.1]) for (const x of [-3.8, 3.8]) for (const r of [.6, -.6]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(8.4, .35, .35), braceMat); bar.position.set(x, FH / 2, z); bar.rotation.z = r; brace.add(bar);
+    }
+    // 二樓以上：以左下角為支點，倒塌時會下沉並傾斜
+    const upperPivot = new THREE.Group(); upperPivot.position.set(-W / 2, FH, 0); B.add(upperPivot);
+    for (let f = 1; f < 12; f++) {
+        const tex = windowTexture(f * 7 + 3);
+        const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: .45, roughness: .85 });
+        const floorBox = new THREE.Mesh(new THREE.BoxGeometry(W, FH, D), [m, m, concrete, concrete, m, m]);
+        floorBox.position.set(W / 2, (f - 1) * FH + FH / 2, 0); upperPivot.add(floorBox);
+    }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(W + .6, .6, D + .6), concrete); roof.position.set(W / 2, 11 * FH + .3, 0); upperPivot.add(roof);
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(12, 1.8), new THREE.MeshBasicMaterial({ transparent: true,
+        map: textTexture([{ text: '雲門翠堤大樓', font: '700 110px "Noto Serif TC", serif', y: 90, color: '#ffffff', blur: 6 }], { w: 1024, h: 180 }) }));
+    label.position.set(0, 38, 7); world.add(label);
+
+    const kit = makeKit(scene, { domX: -64, domZ: 34, lanterns: 14, area: { x: 0, z: 4, w: 24, d: 20, y: 6 } });
+    const dimmer = makeDimmer(scene, [hemi, moon]);
+    let shakeAmp = 0, time = 0;
+
+    function reset() {
+        kit.reset(); dimmer.restore();
+        walls.forEach(w => { w.visible = true; w.material.opacity = 1; w.material.emissive.setHex(0); w.material.color.setHex(0xb9ad9a); });
+        brace.visible = false; f1.scale.y = 1; upperPivot.position.y = FH; upperPivot.rotation.z = 0; label.position.y = 38; label.rotation.z = 0;
+        shakeAmp = 0;
+    }
+    reset();
+    async function quake(sec = 3.5) { await tween(sec, k => { shakeAmp = Math.sin(k * Math.PI) * 1; camShake = Math.max(camShake, .5 * Math.sin(k * Math.PI)); }, t => t); shakeAmp = 0; }
+    async function pulseWalls() { await tween(1.6, k => walls.forEach(w => w.material.emissive.setRGB(.5 * Math.sin(k * Math.PI * 4) ** 2, 0, 0))); walls.forEach(w => w.material.emissive.setRGB(.25, 0, 0)); }
+
+    const S = {
+        wide:  [[46, 30, 74], [0, 16, 0]],
+        base:  [[16, 5, 26], [0, 2.5, 0]],
+        tower: [[54, 22, 60], [0, 14, 0]],
+        sky:   [[40, 24, 84], [0, 30, 0]],
+    };
+    return {
+        scene, kit, reset,
+        intro: '2018・02・06 23:50 ・ 花蓮市',
+        prefix: {},
+        shots: { wide: S.wide, beats: [S.base, S.base, S.tower, S.tower, S.sky] },
+        beats: [
+            pulseWalls,
+            async () => {   // 一樓結構牆一面面消失
+                for (const w of walls.slice(0, 7)) { await tween(.35, k => { w.material.opacity = 1 - k; }); w.visible = false; }
+            },
+            () => quake(3.5),
+            async () => {   // 地震發生約 8 秒，低樓層崩塌、整棟傾斜
+                flash(); camShake = 1.3;
+                const qp = quake(2.5);
+                await tween(1.6, k => { f1.scale.y = 1 - .8 * k; upperPivot.position.y = FH - 2.4 * k; upperPivot.rotation.z = .3 * k; label.position.y = 38 - 3 * k; label.rotation.z = .25 * k; }, t => t * t);
+                kit.puff([0, 2, 8], 30, '170,165,160'); kit.puff([6, 2, -4], 20, '170,165,160');
+                await qp;
+            },
+            async () => { await dimmer.dim(0x04050a); kit.lanternsOn(true); },
+        ],
+        memorial: '升起的 14 盞燈，代表在雲門翠堤大樓罹難的 14 條生命。',
+        told: {
+            1: '若建築物依耐震標準設計，避開脆弱的結構配置，大樓一開始就有足夠的耐震能力。',
+            2: '若由合格的專業人員設計、監造與施工，一樓不短少結構牆，大樓就不會形成脆弱的「軟弱層」。',
+            3: '若及早做耐震評估與補強，地震來時大樓就能承受側向的搖晃力量。',
+        },
+        async safe(k) {
+            moveCamera(...S.base, 2);
+            if (k === 1) await tween(1, t => walls.forEach(w => { w.material.emissive.setRGB(.25 * (1 - t), .2 * t, .05 * t); }));
+            else { brace.visible = true; await tween(.8, t => { brace.scale.set(1, t, 1); }); }
             await wait(.6);
-            strap.visible = true;
-            await tween(1, k => { armPivot.rotation.x = .35 - .3 * k; });
+            await moveCamera(...S.tower, 2);
+            await quake(4);
+            return { title: '大樓撐住了', text: '地震依然發生，但大樓沒有倒下。搖晃停止後，住在裡面的人都能平安避難。' };
         },
-        async truckSlide(stopAtFence = false) {
-            const b = stopAtFence ? TRUCK_FENCE : TRUCK_TRACK;
-            strap.visible = false;
-            puff([13, 6, 27]);
-            await tween(1.6, k => lerpState(TRUCK_RAMP, b, k), t => t * t);
-            puff(b.p, 18);
+        update(dt) {
+            time += dt;
+            kit.update(dt);
+            world.position.x = Math.sin(time * 28) * .35 * shakeAmp;
+            world.position.z = Math.cos(time * 23) * .25 * shakeAmp;
+            B.rotation.z = Math.sin(time * 6) * .012 * shakeAmp;
         },
-        async trainCome({ crash }) {
-            const stopAt = crash ? 18.5 : -250;
-            const start = trainHead;
-            const dur = crash ? 3.2 : 6;
-            await tween(dur, k => { trainHead = start + (stopAt - start) * k; }, t => t);
-            if (!crash) return;
-            $('flash').style.opacity = .85; setTimeout(() => $('flash').style.opacity = 0, 180);
-            camShake = 1.2;
-            puff([0, 2, 18], 30);
-            truck.position.set(-4, .6, 6); truck.rotation.set(.4, 1.6, 1.2);
-            await tween(1.8, k => { trainHead = 18.5 - 40 * k; derail = k; }, t => 1 - (1 - t) * (1 - t));
+    };
+}
+
+// ═══════════════════════════════════════════════
+// 場景：馬太鞍溪堰塞湖與光復鄉（居民以光點抽象呈現，不呈現人物傷亡）
+// ═══════════════════════════════════════════════
+function buildMataian() {
+    const scene = new THREE.Scene();
+    const sun = makeSky(scene, 9, 200, { turbidity: 12, rayleigh: 3 });
+    scene.fog = new THREE.FogExp2(0x7c8690, 0.0032);
+    scene.environmentIntensity = .45;
+    const hemi = new THREE.HemisphereLight(0xc7d0dc, 0x2f3a2c, 1);
+    const dl = new THREE.DirectionalLight(0xe8ecf2, 1.6); dl.position.copy(sun).multiplyScalar(300);
+    scene.add(hemi, dl);
+
+    // 地面、溪床
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), new THREE.MeshStandardMaterial({ color: 0x4d6a3e, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; scene.add(ground);
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(34, .3, 620), new THREE.MeshStandardMaterial({ color: 0x8f8a80, roughness: 1 }));
+    bed.position.set(0, .12, -50); scene.add(bed);
+    const creek = new THREE.Mesh(new THREE.BoxGeometry(6, .2, 620), new THREE.MeshStandardMaterial({ color: 0x5f8fa0, roughness: .3 }));
+    creek.position.set(0, .3, -50); scene.add(creek);
+    // 兩側山脈
+    const mCol = [0x2f4a33, 0x36533a, 0x2a4230];
+    for (let i = 0; i < 18; i++) {
+        const side = i % 2 ? 1 : -1, z = -340 + Math.floor(i / 2) * 32;
+        const m = mountain(34 + Math.random() * 14, 60 + Math.random() * 60, mCol[i % 3], i + 21);
+        m.position.x = side * (62 + Math.random() * 16); m.position.z = z; scene.add(m);
+    }
+    const back = mountain(160, 190, 0x2c4430, 77); back.position.set(0, 93, -420); scene.add(back);
+    // 崩塌地（山的傷口）
+    const scar = new THREE.Mesh(new THREE.PlaneGeometry(40, 60), new THREE.MeshStandardMaterial({ color: 0x9a7b55, roughness: 1, transparent: true, opacity: 0 }));
+    scar.position.set(34, 26, -176); scar.rotation.set(-.2, -1.1, 0); scene.add(scar);
+    // 堰塞壩與湖
+    const dam = new THREE.Mesh(new THREE.BoxGeometry(76, 22, 34), new THREE.MeshStandardMaterial({ color: 0x8a6a45, flatShading: true, roughness: 1 }));
+    dam.position.set(0, 11, -165); scene.add(dam);
+    const lakeMat = new THREE.MeshStandardMaterial({ color: 0x4f7f8c, roughness: .15, metalness: .3 });
+    const lake = new THREE.Mesh(new THREE.BoxGeometry(80, 1, 150), lakeMat); scene.add(lake);
+    function setLake(level) { lake.visible = level > .3; lake.scale.y = Math.max(.01, level); lake.position.set(0, level / 2, -258); }
+    // 疏洪道（抽掉骨牌後才出現）
+    const spill = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 36), new THREE.MeshStandardMaterial({ color: 0x3ddc84, emissive: 0x22aa55, emissiveIntensity: .8 }));
+    spill.position.set(20, 12.5, -165); spill.visible = false; scene.add(spill);
+    // 溢流
+    const overflowTex = glowTexture('150,120,90');
+    const overflow = [];
+    for (let i = 0; i < 40; i++) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: overflowTex, transparent: true, opacity: 0, depthWrite: false }));
+        s.scale.set(8, 8, 1); scene.add(s); overflow.push({ s, t: Math.random(), x: (Math.random() - .5) * 60 });
+    }
+    let overflowOn = false;
+    // 泥流（沿河道往下游推進）
+    const mudMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3a, roughness: .6 });
+    const mud = new THREE.Mesh(new THREE.BoxGeometry(34, 3, 1), mudMat); mud.visible = false; scene.add(mud);
+    function setMud(front) { mud.visible = front > -148; const len = Math.max(1, front + 148); mud.scale.z = len; mud.position.set(0, 1.6, -148 + len / 2); }
+    // 光復市區：房屋、堤防、台9線馬太鞍溪橋
+    const houses = [];
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a4b3a, roughness: .8 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: .9 });
+    for (let i = 0; i < 40; i++) {
+        const x = 30 + (i % 8) * 11 + (Math.random() - .5) * 3, z = 70 + Math.floor(i / 8) * 20 + (Math.random() - .5) * 4;
+        const h = new THREE.Mesh(new THREE.BoxGeometry(6, 4 + (i % 3) * 2, 6), wallMat); h.position.set(x, h.geometry.parameters.height / 2, z); scene.add(h);
+        const r = new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.4, 4), roofMat); r.rotation.y = Math.PI / 4; r.position.set(x, h.geometry.parameters.height + 1.2, z); scene.add(r);
+        houses.push({ x, z });
+    }
+    const leveeMat = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: .9 });
+    const levee = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 150), leveeMat); levee.position.set(19, 2, 135); scene.add(levee);
+    const breach = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 50), leveeMat.clone()); breach.position.set(19, 2, 35); scene.add(breach);
+    const bridge = new THREE.Group(); scene.add(bridge);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(46, 1.2, 7), new THREE.MeshStandardMaterial({ color: 0xb5b0a6, roughness: .8 }));
+    deck.position.set(0, 5.5, 20); bridge.add(deck);
+    const piers = [];
+    for (const x of [-12, 0, 12]) { const p = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5, 4), leveeMat); p.position.set(x, 2.5, 20); bridge.add(p); piers.push(p); }
+    const bridgeLabel = new THREE.Mesh(new THREE.PlaneGeometry(22, 3), new THREE.MeshBasicMaterial({ transparent: true,
+        map: textTexture([{ text: '台9線 馬太鞍溪橋', font: '700 100px "Noto Serif TC", serif', y: 70, color: '#ffffff', blur: 8 }], { w: 1024, h: 140 }) }));
+    bridgeLabel.position.set(0, 12, 20); scene.add(bridgeLabel);
+    const townLabel = new THREE.Mesh(new THREE.PlaneGeometry(22, 4), new THREE.MeshBasicMaterial({ transparent: true,
+        map: textTexture([{ text: '光復鄉市區', font: '700 110px "Noto Serif TC", serif', y: 90, color: '#ffffff', blur: 8 }], { w: 1024, h: 180 }) }));
+    townLabel.position.set(68, 22, 110); scene.add(townLabel);
+    // 淹進市區的泥水
+    const flood = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 130), mudMat); flood.position.set(72, 0, 120); flood.visible = false; scene.add(flood);
+    // 高地上的避難處所
+    const hill = mountain(40, 26, 0x55704a, 5); hill.position.set(150, 11, 130); scene.add(hill);
+    const shelter = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 10), new THREE.MeshStandardMaterial({ color: 0xf2efe6 })); shelter.position.set(150, 26, 130); scene.add(shelter);
+    const shelterLabel = new THREE.Mesh(new THREE.PlaneGeometry(18, 3), new THREE.MeshBasicMaterial({ transparent: true,
+        map: textTexture([{ text: '避難處所', font: '700 110px "Noto Serif TC", serif', y: 70, color: '#bff5d0', blur: 8 }], { w: 1024, h: 140 }) }));
+    shelterLabel.position.set(150, 34, 130); scene.add(shelterLabel);
+    // 居民：以光點表示（約七成撤離、三成留在家中）
+    const N = 60, dotGeo = new THREE.SphereGeometry(.9, 8, 8);
+    const dots = [];
+    for (let i = 0; i < N; i++) {
+        const h = houses[i % houses.length];
+        const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xfff1c0 }));
+        const home = new THREE.Vector3(h.x + (Math.random() - .5) * 4, 1.5, h.z + 4.5);
+        const safe = new THREE.Vector3(150 + (Math.random() - .5) * 20, 30, 138 + Math.random() * 10);
+        m.position.copy(home); scene.add(m);
+        dots.push({ m, home, safe, stays: i % 10 >= 7 });
+    }
+    // 雨
+    const rainN = 1600, rp = new Float32Array(rainN * 3);
+    for (let i = 0; i < rainN; i++) { rp[i * 3] = (Math.random() - .5) * 400; rp[i * 3 + 1] = Math.random() * 120; rp[i * 3 + 2] = -300 + Math.random() * 520; }
+    const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+    const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xd8e2ec, size: .9, transparent: true, opacity: .55 }));
+    scene.add(rain);
+
+    const kit = makeKit(scene, { domX: -120, domZ: 150, lanterns: 19, area: { x: 70, z: 110, w: 70, d: 90, y: 4 } });
+    const dimmer = makeDimmer(scene, [hemi, dl]);
+    let lakeLevel = 0, time = 0, blink = false;
+
+    function reset() {
+        kit.reset(); dimmer.restore();
+        scar.material.opacity = 0; dam.scale.y = .01; dam.position.y = .2; lakeLevel = 0; setLake(0);
+        spill.visible = false; overflowOn = false; overflow.forEach(o => o.s.material.opacity = 0);
+        setMud(-200); flood.visible = false; flood.scale.y = .01;
+        deck.rotation.set(0, 0, 0); deck.position.set(0, 5.5, 20); piers.forEach(p => { p.rotation.set(0, 0, 0); p.visible = true; });
+        breach.visible = true; breach.material.color.setHex(0x9a9a92); breach.material.emissive?.setHex(0); breach.scale.y = 1; breach.position.y = 2;
+        levee.scale.y = 1; levee.position.y = 2; levee.material.emissive.setHex(0);
+        dots.forEach(d => { d.m.position.copy(d.home); d.m.visible = true; d.m.material.color.setHex(0xfff1c0); });
+        blink = false;
+    }
+    reset();
+
+    async function landslide() {
+        await tween(1.2, k => { scar.material.opacity = k; });
+        kit.puff([20, 18, -165], 30, '160,130,100');
+        await tween(1.6, k => { dam.scale.y = Math.max(.01, k); dam.position.y = 11 * k; }, t => t * t);
+        await tween(2.5, k => { lakeLevel = 10 * k; setLake(lakeLevel); });
+    }
+    async function evacuate(all) {
+        await tween(3.5, k => dots.forEach(d => {
+            if (d.stays && !all) return;
+            d.m.position.lerpVectors(d.home, d.safe, k); d.m.position.y += Math.sin(k * Math.PI) * 12;
+        }));
+        if (!all) { blink = true; dots.forEach(d => { if (d.stays) d.m.material.color.setHex(0xffa060); }); }
+    }
+    async function rise(to) { const from = lakeLevel; await tween(2.5, k => { lakeLevel = from + (to - from) * k; setLake(lakeLevel); }); }
+    async function surge({ breakBridge = true, intoTown = true } = {}) {
+        overflowOn = true; flash(); camShake = .8;
+        moveCamera(...S.flood, 3.5);
+        await tween(3.2, k => setMud(-148 + 420 * k), t => t);
+        if (breakBridge) { kit.puff([0, 6, 20], 25, '140,110,80'); await tween(1, k => { deck.rotation.z = .5 * k; deck.position.y = 5.5 - 4 * k; piers[1].rotation.z = .7 * k; }); }
+        if (intoTown) {
+            breach.visible = false; kit.puff([19, 3, 35], 25, '140,110,80');
+            flood.visible = true;
+            await tween(2.5, k => { flood.scale.y = Math.max(.01, 3.2 * k); flood.position.y = 1.6 * k; });
+            blink = false;
+            dots.forEach(d => { if (d.stays) d.m.visible = false; });
+        }
+    }
+
+    const S = {
+        wide:  [[140, 90, 260], [20, 0, -40]],
+        dam:   [[0, 115, -10], [0, 5, -220]],
+        town:  [[130, 60, 240], [70, 5, 110]],
+        flood: [[80, 55, 110], [10, 0, 10]],
+        sky:   [[120, 40, 250], [70, 30, 110]],
+    };
+    return {
+        scene, kit, reset,
+        intro: '2025・09 ・ 花蓮 馬太鞍溪上游',
+        prefix: {},
+        shots: { wide: S.wide, beats: [S.dam, S.town, S.dam, S.flood, S.sky] },
+        beats: [
+            landslide,
+            () => evacuate(false),
+            async () => { await rise(21); overflowOn = true; await wait(1.5); },
+            () => surge(),
+            async () => { overflowOn = false; await dimmer.dim(0x2a3038); kit.lanternsOn(true); },
+        ],
+        memorial: '升起的 19 盞燈，代表 19 位罹難者；另有 5 人至今下落不明。',
+        told: {
+            1: '若能及早處置堰塞湖、降低湖水位，並持續監測預警，湖水就不會在颱風來時漫過壩頂。',
+            2: '若預警訊息清楚傳達、下游居民都及時撤離到安全的地方，即使洪水來襲，也能避免人命傷亡。',
+            3: '若河道與堤防足以承受溢流的泥流，洪水就不會衝進光復市區。',
         },
-        async mourn() {
-            const f0 = scene.fog.color.clone(), f1 = new THREE.Color(0x2a2f3a);
-            await tween(2.5, k => { scene.fog.color.lerpColors(f0, f1, k); hemi.intensity = .9 - .6 * k; dl.intensity = 2.4 - 2 * k; });
-            lanternOn = true;
+        async safe(k) {
+            if (k === 0) {
+                moveCamera(...S.dam, 2);
+                await landslide();
+                spill.visible = true; await rise(5);
+                return { title: '湖水被安全引走', text: '颱風的雨一樣大，但湖水位已經降低，沒有漫過壩頂。下游的光復鄉平安度過。' };
+            }
+            if (k === 1) {
+                moveCamera(...S.town, 2);
+                await evacuate(true);
+                await rise(21);
+                await surge();
+                return { title: '洪水來了，但人都平安', text: '洪水仍然淹進市區，但所有居民都已撤離到避難處所。連鎖反應在奪走人命之前中斷。' };
+            }
+            moveCamera(...S.town, 2);
+            await tween(1.2, t => { levee.scale.y = 1 + t; levee.position.y = 2 + 2 * t; breach.scale.y = 1 + t; breach.position.y = 2 + 2 * t; });
+            levee.material.emissive.setHex(0x1f8a4c); breach.material.emissive = new THREE.Color(0x1f8a4c);
+            await rise(21);
+            await surge({ breakBridge: false, intoTown: false });
+            return { title: '洪水留在河道裡', text: '泥流沿著河道流過，被加高加固的堤防擋在市區之外。' };
         },
-        stopMourn() { lanternOn = false; },
-        showFence() { fence.visible = true; return tween(.8, k => { fence.scale.y = k; }); },
-        fallDomino,
+        update(dt) {
+            time += dt;
+            kit.update(dt);
+            overflow.forEach(o => {
+                if (!overflowOn) { o.s.material.opacity = Math.max(0, o.s.material.opacity - dt); return; }
+                o.t = (o.t + dt * .5) % 1;
+                o.s.position.set(o.x, 22 - o.t * 18, -150 + o.t * 30);
+                o.s.material.opacity = .7 * (1 - o.t);
+            });
+            if (blink) dots.forEach(d => { if (d.stays) d.m.visible = Math.sin(time * 6) > -.3; });
+            const pos = rain.geometry.attributes.position;
+            for (let i = 0; i < rainN; i++) { let y = pos.getY(i) - dt * 60; if (y < 0) y += 120; pos.setY(i, y); }
+            pos.needsUpdate = true;
+        },
     };
 }
 
 // ═══════════════════════════════════════════════
 // 流程控制
 // ═══════════════════════════════════════════════
-let river, taroko, active;
+let river, active;
 function useScene(s) { active = s; renderPass.scene = s.scene; }
 
 let stopIndex = 0;
@@ -836,7 +1434,7 @@ async function goStop(i) {
     if (stopIndex > 0) {
         const ev = EVENTS[stopIndex - 1];
         nav.splice(1, 0, ev.has3d
-            ? { label: '進入事故現場（3D 因果動畫）', primary: true, onClick: enterTaroko }
+            ? { label: '進入事故現場（3D 因果動畫）', primary: true, onClick: () => enterEvent(ev.key) }
             : { label: '觀看事故故事 ▶', primary: true, onClick: () => playStory(ev) });
     }
     actions(nav);
@@ -855,7 +1453,7 @@ async function playStory(ev) {
     $('timeline').style.display = '';
     actions([
         { label: '◀ 回到時間之河', onClick: () => goStop(stopIndex) },
-        { label: '進入現場模擬與分析 →', primary: true, href: `index.html#/${ev.key}/sim` },
+        { label: '進入現場模擬與分析 →', primary: true, onClick: () => goAnalysis(ev.key) },
     ]);
 }
 
@@ -870,106 +1468,72 @@ function gateAt(e) {
 canvas.addEventListener('click', e => {
     const i = gateAt(e);
     if (i < 0 || $('timeline').style.display === 'none') return;
-    if (stopIndex === i + 1) { const ev = EVENTS[i]; ev.has3d ? enterTaroko() : playStory(ev); }
+    if (stopIndex === i + 1) { const ev = EVENTS[i]; ev.has3d ? enterEvent(ev.key) : playStory(ev); }
     else goStop(i + 1);
 });
 canvas.addEventListener('pointermove', e => { canvas.style.cursor = gateAt(e) >= 0 ? 'pointer' : ''; });
 
-// ── 太魯閣號流程 ──
-const SHOTS = {
-    wide:   [[-40, 36, 125], [2, 4, 14]],
-    slope:  [[-14, 20, 62], [14, 5, 24]],
-    slide:  [[-16, 10, 48], [6, 3, 22]],
-    track:  [[-10, 4.5, 80], [0, 3, 10]],
-    impact: [[-22, 12, 55], [0, 3, 12]],
-    sky:    [[40, 18, 95], [0, 22, 20]],
-    dom:    [[-34, 7.5, 84], [-34, 3.5, 56]],
-};
-const TOLD = {
-    1: '若邊坡有防護設施、便道依設計鋪設，大貨車就算熄火，也不會一路滑落到軌道上。',
-    2: '若沒有在停工期間違規進入工地，或車輛故障時交給專業業者處理並通報台鐵，大貨車就不會被硬拖而滑落。',
-    3: '若軌道旁有防護設施，或及時通報攔停列車，軌道上的危險就能在列車抵達前被排除。',
-};
+// ── 3D 事故現場：通用流程（骨牌依序倒下 → 追思 → 抽掉一張骨牌）──
+const SCENES3D = { case2: buildParty, case3: buildQuake, taroko: buildTaroko, mataian: buildMataian };
+const built3d = {};
+let cur = null, curKey = null;
 
-async function enterTaroko() {
+// 前往平面版的分析頁：用「#taroko.sim」這種簡單格式，並另存一份在本機，確保不會被帶回首頁
+function goAnalysis(key) {
+    try { localStorage.setItem('sg_goto', `#/${key}/sim`); } catch (_) {}
+    location.href = `${SITE}#${key}.sim`;
+}
+
+async function enterEvent(key) {
     actions([]);
     music.setMood('solemn');
     subtitle.classList.add('hide');
     await fadeVeil(true);
-    if (!taroko) taroko = buildTaroko();
-    taroko.dominoes.forEach(d => d.removed = false);
-    taroko.reset();
-    useScene(taroko);
+    if (!built3d[key]) built3d[key] = SCENES3D[key]();
+    cur = built3d[key]; curKey = key;
+    cur.kit.dominoes.forEach(d => d.removed = false);
+    cur.reset();
+    useScene(cur);
     $('timeline').style.display = 'none';
-    setCamera(...SHOTS.wide);
+    setCamera(...cur.shots.wide);
     await fadeVeil(false);
-    playTaroko();
+    playEvent();
 }
 
 async function stepButton(label = '下一步 ▶') {
     return new Promise(res => actions([{ label, primary: true, onClick: () => { actions([]); res(); } }]));
 }
 
-async function playTaroko() {
-    const d = cases.taroko.domino, ch = storyData.taroko.chapters;
-    await say('2021・04・02 ・ 花蓮 清水隧道北口', ch[0].text);
+async function playEvent() {
+    const o = cur, key = curKey, d = cases[key].domino;
+    await say(o.intro, storyData[key].chapters[0].text);
     await stepButton('讓骨牌開始倒下 ▶');
-
-    await moveCamera(...SHOTS.dom, 2);
-    await taroko.fallDomino(0);
-    moveCamera(...SHOTS.slope, 2.5);
-    await say('骨牌 1 ・ 環境因素', d[0].factor);
-    await taroko.slopeWarn();
-    await stepButton();
-
-    await moveCamera(...SHOTS.dom, 1.6);
-    await taroko.fallDomino(1);
-    moveCamera(...SHOTS.slope, 2.2);
-    await say('骨牌 2 ・ 人為疏失', d[1].factor);
-    await taroko.truckStall();
-    await stepButton();
-
-    await moveCamera(...SHOTS.dom, 1.6);
-    await taroko.fallDomino(2);
-    moveCamera(...SHOTS.slide, 2);
-    await say('骨牌 3 ・ 危險因素', d[2].factor);
-    await wait(1);
-    await taroko.truckSlide();
-    await stepButton();
-
-    await moveCamera(...SHOTS.dom, 1.6);
-    await taroko.fallDomino(3);
-    await moveCamera(...SHOTS.track, 2);
-    await say('骨牌 4 ・ 意外事故', '約 09:28，' + d[3].factor);
-    moveCamera(...SHOTS.impact, 3.4);
-    await taroko.trainCome({ crash: true });
-    await stepButton();
-
-    await moveCamera(...SHOTS.dom, 1.6);
-    await taroko.fallDomino(4);
-    moveCamera(...SHOTS.sky, 4);
-    await say('骨牌 5 ・ 損失', d[4].factor);
-    await taroko.mourn();
+    for (let i = 0; i < 5; i++) {
+        await moveCamera(...o.kit.dom, i ? 1.6 : 2);
+        await o.kit.fallDomino(i);
+        moveCamera(...o.shots.beats[i], 2.4);
+        await say(`骨牌 ${i + 1} ・ ${DOMINO_NAMES[i]}`, (o.prefix[i] || '') + d[i].factor);
+        await o.beats[i]();
+        if (i < 4) await stepButton();
+    }
     await wait(1.5);
-    await say('', '升起的 49 盞燈，代表 49 條再也回不了家的生命。');
-    markStorySeen('taroko');
+    await say('', o.memorial);
+    markStorySeen(key);
     await stepButton('如果能抽掉一張骨牌…… ▶');
-    taroko.stopMourn();
     choosePrevention();
 }
 
 async function choosePrevention() {
-    taroko.dominoes.forEach(d => d.removed = false);
-    taroko.reset();
-    await moveCamera(...SHOTS.dom, 2);
+    const o = cur;
+    o.kit.dominoes.forEach(d => d.removed = false);
+    o.reset();
+    await moveCamera(...o.kit.dom, 2);
     await say('抽掉一張骨牌', '海因里希的骨牌理論說：只要抽掉其中一張，連鎖反應就會中斷。你想抽掉哪一張？');
-    actions(cases.taroko.domino.map((_, i) => ({
-        label: `${i + 1}. ${['環境因素', '人為疏失', '危險因素', '意外事故', '損失'][i]}`,
-        cls: 'pick', onClick: () => replayWithout(i),
-    })));
+    actions(DOMINO_NAMES.map((n, i) => ({ label: `${i + 1}. ${n}`, cls: 'pick', onClick: () => replayWithout(i) })));
 }
 
 async function replayWithout(k) {
+    const o = cur;
     actions([]);
     if (k >= 3) {
         await say('想一想', k === 3
@@ -978,27 +1542,19 @@ async function replayWithout(k) {
         actions([{ label: '重新選擇', primary: true, onClick: choosePrevention }]);
         return;
     }
-    const d = taroko.dominoes[k];
-    d.removed = true;
-    await tween(1, t => { d.pivot.position.y = t * 9; });
-    d.slab.visible = false;
+    await o.kit.lift(k);
     await say('連鎖反應開始……', '');
-    for (let i = 0; i < k; i++) await taroko.fallDomino(i);
+    for (let i = 0; i < k; i++) await o.kit.fallDomino(i);
     await wait(.6);
-    await say('連鎖中斷！', TOLD[k + 1]);
-    // 依被抽掉的骨牌呈現「沒有發生的事」
-    moveCamera(...SHOTS.slope, 2.2);
-    if (k >= 1) await taroko.slopeWarn();
-    if (k === 0) await taroko.showFence();
-    if (k === 2) { await taroko.truckStall(); await taroko.showFence(); await taroko.truckSlide(true); }
-    await wait(.8);
-    await moveCamera(...SHOTS.track, 2);
-    await say('列車平安駛入隧道', '軌道淨空，408次列車和車上的每一個人，都能準時抵達目的地。');
-    moveCamera(...SHOTS.wide, 5);
-    await taroko.trainCome({ crash: false });
+    await say('連鎖中斷！', o.told[k + 1]);
+    // 沒被抽掉的前面幾張骨牌，事件仍會發生
+    for (let i = 0; i < k; i++) { moveCamera(...o.shots.beats[i], 2); await o.beats[i](); }
+    const end = await o.safe(k);
+    await say(end.title, end.text);
+    if (end.after) await end.after();
     actions([
         { label: '再抽一次', onClick: choosePrevention },
-        { label: '進入現場模擬與分析 →', primary: true, href: 'index.html#/taroko/sim' },
+        { label: '進入現場模擬與分析 →', primary: true, onClick: () => goAnalysis(curKey) },
         { label: '回到時間之河', onClick: backToRiver },
     ]);
 }
@@ -1062,12 +1618,13 @@ function loop() {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') goStop(stopIndex - 1);
     });
     // 從平面版「以 3D 觀看」直接進入：timeline.html#taroko
-    if (location.hash === '#taroko') {
+    const deep = location.hash.slice(1);
+    if (SCENES3D[deep]) {
         addEventListener('pointerdown', () => music.start(), { once: true });
         $('title-card').classList.add('gone');
-        stopIndex = EVENTS.findIndex(e => e.key === 'taroko') + 1;
+        stopIndex = EVENTS.findIndex(e => e.key === deep) + 1;
         river.jump(stops[stopIndex]);
-        enterTaroko();
+        enterEvent(deep);
     }
 })().catch(err => { console.error(err); window.__timelineFail(); });
 </script>

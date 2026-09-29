@@ -1112,7 +1112,12 @@ function updateNextStep(caseKey, kind) {
             <a href="#/${caseKey}/${cfg.next}" class="inline-flex items-center font-bold py-3 px-6 rounded-full shadow transition ${finished
                 ? 'bg-red-500 hover:bg-red-600 text-white next-pulse'
                 : 'bg-white hover:bg-gray-100 text-gray-500 border border-gray-300'}">${finished ? '我完成了，' : '先跳過，'}前往${cfg.label} →</a>
-        </div>`;
+        </div>
+        ${kind === 'domino' && done > 0 ? `
+        <div class="mt-4 rounded-xl p-4 bg-yellow-50 border border-yellow-300 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-gray-700">看完回饋覺得可以寫得更好？可以收起官方分析，<strong>修改自己的答案</strong>後再送出一次。${(getDomino(caseKey).attempt || 1) > 1 ? `（目前是第 ${getDomino(caseKey).attempt} 次作答）` : ''}</p>
+            <button data-action="redo-domino" data-case="${caseKey}" class="shrink-0 bg-white hover:bg-yellow-100 text-yellow-800 font-bold py-2 px-5 rounded-full border border-yellow-400 transition">🔄 重新作答骨牌</button>
+        </div>` : ''}`;
     if (finished) setTimeout(() => el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }), 700);
 }
 
@@ -1136,6 +1141,20 @@ function revealDominoAnswer(caseKey, index) {
         setTimeout(() => document.getElementById('chain-msg')?.classList.remove('hidden'), 600);
     }
     updateNextStep(caseKey, 'domino');
+}
+
+// 重新作答：收起官方分析、解鎖作答（保留原本寫的內容讓學生修改），作答次數＋1
+function redoDomino(caseKey) {
+    if (!confirm('重新作答骨牌：\n・官方分析會先收起來，你原本寫的內容會保留，可以直接修改\n・改好後再一張一張查看官方分析\n・最後到「分析報告」重新送出，老師那邊會新增一份記錄\n\n確定要重新作答嗎？')) return;
+    const ds = getDomino(caseKey);
+    ds.revealed = {};
+    ds.attempt = (ds.attempt || 1) + 1;
+    const sub = state.submissions[caseKey];
+    if (sub && sub.status === 'done') state.submissions[caseKey] = { status: 'none' };
+    saveState();
+    renderCase(caseKey, 'domino');
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    toast(`開始第 ${ds.attempt} 次作答，修改你的想法吧！`);
 }
 
 // ═══════════════════════════════════════════════
@@ -1258,7 +1277,8 @@ function buildPayload(caseKey) {
         ...simSummary(caseKey),
         watch_text: watchLog.text(caseKey),
         // 給 AI 回饋對照用（不寫進試算表）
-        domino_reference: c.domino.map(d => ({ name: d.name, factor: d.factor }))
+        domino_reference: c.domino.map(d => ({ name: d.name, factor: d.factor })),
+        domino_attempt: ds.attempt || 1
     };
 }
 
@@ -1613,7 +1633,7 @@ function downloadRecord(caseKey) {
             return `${i + 1}. ${q.scene}\n   我的選擇：${r ? q.options[r.choice].text : '未作答'}　${r ? (r.correct ? '✓' : '✗') : '—'}`;
         }),
         '',
-        '【骨牌理論】',
+        `【骨牌理論】${(d.domino_attempt || 1) > 1 ? `第 ${d.domino_attempt} 次作答` : ''}`,
         ...c.domino.map((dm, i) => `${i + 1}. ${dm.name}\n   我的分析：${d.domino_inputs[i] || '（未填寫）'}\n   官方分析：${dm.factor}`),
         '',
         `【三段五級】得分 ${d.score}/${d.total}`,
@@ -1645,6 +1665,7 @@ document.addEventListener('click', e => {
     switch (action) {
         case 'need-info': e.preventDefault(); toast('請先填寫班級、座號、姓名！'); document.getElementById('input-class')?.focus(); break;
         case 'reveal': revealDominoAnswer(ck, Number(index)); break;
+        case 'redo-domino': redoDomino(ck); break;
         case 'sim': answerSim(ck, Number(index), Number(opt)); break;
         case 'story-go': setPlaying(false); showChapter(story.caseKey, Number(index)); break;
         case 'story-prev': setPlaying(false); if (story.index > 0) showChapter(story.caseKey, story.index - 1); break;

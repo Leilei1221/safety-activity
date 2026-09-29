@@ -1815,6 +1815,7 @@ function renderTimeline() {
 
 async function goStop(i) {
     runId++;
+    watchTimer.stop();
     $('btn-river').hidden = true;
     stopIndex = Math.max(0, Math.min(stops.length - 1, i));
     river.setTarget(stops[stopIndex]);
@@ -1835,7 +1836,9 @@ async function goStop(i) {
         nav.splice(1, 0, ev.has3d
             ? { label: '進入事故現場（3D 因果動畫）', primary: true, onClick: () => enterEvent(ev.key) }
             : { label: '觀看事故故事 ▶', primary: true, onClick: () => playStory(ev) },
-            { label: '直接進入分析 →', onClick: () => goAnalysis(ev.key) });
+            watchLog.unlocked(ev.key)
+                ? { label: '進入分析 →', onClick: () => goAnalysis(ev.key) }
+                : { label: '🔒 分析（看完故事後解鎖）', disabled: true });
     }
     actions(nav);
 }
@@ -1850,10 +1853,11 @@ function analysisProgress(key) {
     } catch (_) { return ''; }
 }
 async function showReflect() {
-    await say('THE END OF THE RIVER ・ 終點', `${EVENTS.length} 起事故，${EVENTS.length} 條沒有被截斷的因果之河。回頭想一想：你想深入分析哪一起？選一起事故，進入現場模擬與分析。`);
+    await say('THE END OF THE RIVER ・ 終點', `${EVENTS.length} 起事故，${EVENTS.length} 條沒有被截斷的因果之河。回頭想一想：你想深入分析哪一起？看過故事的事故才能進入分析，🔒 的請先回去看。`);
     if (!isEndStop(stopIndex)) return;
     actions([
-        ...EVENTS.map(ev => {
+        ...EVENTS.map((ev, i) => {
+            if (!watchLog.unlocked(ev.key)) return { label: `🔒 ${ev.year}｜${ev.title}（先去看故事）`, onClick: () => goStop(i + 1) };
             const prog = analysisProgress(ev.key);
             return { label: `${ev.year}｜${ev.title}${prog === '已完成' ? ' ✓' : prog ? '（進行中）' : ''}`, primary: prog !== '已完成', onClick: () => goAnalysis(ev.key) };
         }),
@@ -1866,6 +1870,7 @@ async function showReflect() {
 async function playStory(ev) {
     const id = ++runId;
     const chs = storyData[ev.key].chapters;
+    watchTimer.start(ev.key);
     $('timeline').style.display = 'none';
     $('btn-river').hidden = false;
     for (let i = 0; i < chs.length; i++) {
@@ -1875,7 +1880,8 @@ async function playStory(ev) {
     }
     $('btn-river').hidden = true;
     markStorySeen(ev.key);
-    await say(ev.title, '接下來，換你親自分析這起事故的因果與預防。');
+    watchLog.finish(ev.key);
+    await say(ev.title, watchLog.unlocked(ev.key) ? '接下來，換你親自分析這起事故的因果與預防。' : `故事看完了！再多停留 ${watchLog.remain(ev.key)} 秒想一想，就能進入分析。`);
     if (id !== runId) return;
     $('timeline').style.display = '';
     actions([
@@ -1912,6 +1918,13 @@ let cur = null, curKey = null;
 
 // 前往平面版的分析頁：用「#taroko.sim」這種簡單格式，並另存一份在本機，確保不會被帶回首頁
 function goAnalysis(key) {
+    if (!watchLog.unlocked(key)) {   // 還沒看完或觀看時間不足
+        const w = watchLog.get(key), left = watchLog.remain(key);
+        say('分析尚未解鎖', !w.done
+            ? `請先看完「${cases[key].title}」的故事或 3D 動畫，並至少觀看 ${WATCH_MIN_SEC} 秒，才能進入分析。`
+            : `再多看 ${left} 秒，就能進入分析。趁這段時間，想一想：這起事故裡，哪一張骨牌最容易被抽掉？`);
+        return;
+    }
     try { localStorage.setItem('sg_goto', `#/${key}/sim`); } catch (_) {}
     location.href = `${SITE}#${key}.sim`;
 }
@@ -1924,6 +1937,7 @@ async function enterEvent(key) {
     if (!built3d[key]) built3d[key] = SCENES3D[key]();
     cur = built3d[key]; curKey = key;
     const id = ++runId;
+    watchTimer.start(key);
     $('btn-river').hidden = false;
     cur.kit.dominoes.forEach(d => d.removed = false);
     cur.reset();
@@ -1959,6 +1973,7 @@ async function playEvent(id) {
     if (!alive()) return;
     await say('', o.memorial);
     markStorySeen(key);
+    watchLog.finish(key);
     if (!alive()) return;
     await stepButton('如果能抽掉一張骨牌…… ▶');
     choosePrevention();
@@ -2024,6 +2039,7 @@ async function replayWithout(k) {
 
 async function backToRiver() {
     runId++;
+    watchTimer.stop();
     cur?.leave?.();
     tweens.clear();   // 停止事故現場裡還在進行的動畫
     actions([]);

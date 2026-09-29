@@ -344,3 +344,42 @@ const storyData = {
         ]
     }
 };
+
+// ═══════════════════════════════════════════════
+// 觀看紀錄（index.html 與 timeline.html 共用）
+// 規則：每起事故要「看完故事或 3D 動畫」且「至少觀看 WATCH_MIN_SEC 秒」，才能進入分析
+// ═══════════════════════════════════════════════
+const WATCH_MIN_SEC = 60;   // 每起事故至少要觀看的秒數（老師可自行調整，例如改成 120）
+const watchLog = {
+    all() { try { return JSON.parse(localStorage.getItem('sg_watch') || '{}'); } catch (_) { return {}; } },
+    get(key) { return this.all()[key] || { sec: 0, done: false }; },
+    save(all) { try { localStorage.setItem('sg_watch', JSON.stringify(all)); } catch (_) {} },
+    add(key, sec) { const a = this.all(); a[key] = a[key] || { sec: 0, done: false }; a[key].sec += sec; this.save(a); },
+    finish(key) { const a = this.all(); a[key] = a[key] || { sec: 0, done: false }; a[key].done = true; a[key].doneAt = a[key].doneAt || Date.now(); this.save(a); },
+    teacher() { try { return localStorage.getItem('sg_teacher') === '1'; } catch (_) { return false; } },
+    unlocked(key) { if (this.teacher()) return true; const w = this.get(key); return w.done && w.sec >= WATCH_MIN_SEC; },
+    remain(key) { return Math.max(0, Math.ceil(WATCH_MIN_SEC - this.get(key).sec)); },
+    clear() { try { localStorage.removeItem('sg_watch'); } catch (_) {} },
+    text(key) {   // 給報告與學習記錄用的文字
+        const w = this.get(key), m = Math.floor(w.sec / 60), s = Math.round(w.sec % 60);
+        return `${w.done ? '已看完' : '尚未看完'}，觀看 ${m} 分 ${s} 秒`;
+    },
+};
+// 只在畫面顯示時計時（切到別的分頁、縮小視窗就暫停）
+const watchTimer = {
+    key: null, id: null,
+    start(key) {
+        if (this.key === key && this.id) return;
+        this.stop(); this.key = key;
+        this.id = setInterval(() => { if (document.visibilityState === 'visible') watchLog.add(key, 1); }, 1000);
+    },
+    stop() { clearInterval(this.id); this.id = null; this.key = null; },
+};
+// 老師預覽：在網址加上 ?teacher=1 開啟，?teacher=0 關閉（開啟後不受觀看限制）
+(function () {
+    try {
+        const t = new URLSearchParams(location.search).get('teacher');
+        if (t === '1') localStorage.setItem('sg_teacher', '1');
+        if (t === '0') localStorage.removeItem('sg_teacher');
+    } catch (_) {}
+})();

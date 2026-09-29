@@ -545,6 +545,8 @@ function router() {
 
     if (route.page === 'home') {
         stopStory();
+        watchTimer.stop();
+        clearInterval(ctaTicker);
         renderHome();
     } else if (prev.page !== route.page) {
         const render = () => {
@@ -694,6 +696,7 @@ function saveStudentInfo() {
 function resetStudentInfo() {
     if (!confirm('確定要換人作答嗎？\n這台裝置上的姓名與所有作答紀錄都會被清除。')) return;
     state = emptyState();
+    watchLog.clear();
     saveState(false);
     renderHome();
 }
@@ -706,7 +709,7 @@ function caseProgress(caseKey) {
     const revealed = Object.values(d.revealed || {}).filter(Boolean).length;
     const answered = Object.keys(state.quizResults[caseKey] || {}).length;
     const sd = storyData[caseKey];
-    const storyDone = (state.storySeen[caseKey] ?? -1) >= sd.chapters.length - 1;
+    const storyDone = watchLog.unlocked(caseKey);
     const simAnswered = Object.keys(state.simResults[caseKey] || {}).length;
     const sub = state.submissions[caseKey];
     return { revealed, answered, storyDone, simAnswered, simTotal: sd.sim.length, submitted: sub && sub.status === 'done' };
@@ -725,6 +728,10 @@ function renderCase(caseKey, tab) {
         { key: 'report', label: '分析報告', done: p.submitted },
     ];
     const isAnalysis = ['domino', 'prevention', 'report'].includes(tab);
+    const locked = !watchLog.unlocked(caseKey);   // 還沒看完故事：分析分頁先鎖住
+    clearInterval(ctaTicker);
+    watchTimer.stop();
+    if (tab === 'story') watchTimer.start(caseKey);
 
     contentContainer.innerHTML = `
         <div class="caution-strip"></div>
@@ -741,7 +748,7 @@ function renderCase(caseKey, tab) {
             <a href="#/${caseKey}/${st.key}" class="${st.done ? 'done' : ''} py-3 px-3 sm:px-4 text-base sm:text-lg font-semibold border-b-4 transition duration-150 ${st.key === tab
                 ? 'border-red-500 text-red-600'
                 : 'border-transparent text-gray-500 hover:text-red-500 hover:border-red-300'}">
-                <span class="num">${st.done ? '✓' : i + 1}</span>${st.label}
+                <span class="num">${st.done ? '✓' : (locked && i > 0 ? '🔒' : i + 1)}</span>${st.label}
             </a>`).join('')}
         </nav>
 
@@ -749,6 +756,7 @@ function renderCase(caseKey, tab) {
     `;
 
     if (tab === 'story') renderStory(caseKey);
+    else if (locked) renderLocked(caseKey);
     else if (tab === 'sim') renderSim(caseKey);
     else if (tab === 'domino') renderDomino(caseKey);
     else if (tab === 'prevention') renderPrevention(caseKey);
@@ -832,13 +840,55 @@ function renderStory(caseKey) {
         </div>
         <div id="story-timeline" class="timeline"></div>
         <p class="text-xs text-gray-400 mt-4">${sd.sources}</p>
-        <div id="story-cta" class="${allSeen ? '' : 'hidden'} mt-6 text-center fade-in">
-            <a href="#/${caseKey}/sim" class="inline-flex items-center bg-gray-900 hover:bg-black text-yellow-300 font-bold py-3 px-8 rounded-full shadow-lg">
-                <i data-lucide="gamepad-2" class="w-5 h-5 mr-2"></i>如果你在現場，你會怎麼做？進入現場模擬 →
-            </a>
-        </div>
+        <div id="story-cta" class="mt-6 text-center"></div>
     `;
     showChapter(caseKey, story.index);
+    updateStoryCta(caseKey);
+    ctaTicker = setInterval(() => updateStoryCta(caseKey), 1000);
+}
+
+// 故事頁下方：解鎖前顯示進度，解鎖後才出現「進入現場模擬」
+let ctaTicker = null, ctaState = '';
+function updateStoryCta(caseKey) {
+    const el = document.getElementById('story-cta');
+    if (!el) { clearInterval(ctaTicker); return; }
+    const w = watchLog.get(caseKey);
+    const next = watchLog.unlocked(caseKey) ? 'open' : `${w.done}-${watchLog.remain(caseKey)}`;
+    if (next === ctaState && el.innerHTML) return;
+    ctaState = next;
+    if (next === 'open') {
+        el.innerHTML = `<a href="#/${caseKey}/sim" class="fade-in inline-flex items-center bg-gray-900 hover:bg-black text-yellow-300 font-bold py-3 px-8 rounded-full shadow-lg">
+            <i data-lucide="gamepad-2" class="w-5 h-5 mr-2"></i>如果你在現場，你會怎麼做？進入現場模擬 →</a>`;
+        icons();
+        return;
+    }
+    const pct = Math.min(100, Math.round(w.sec / WATCH_MIN_SEC * 100));
+    el.innerHTML = `
+        <div class="inline-block text-left bg-gray-100 rounded-xl p-4 max-w-md w-full">
+            <p class="font-semibold text-gray-700 mb-2">🔒 ${w.done ? `再多看 ${watchLog.remain(caseKey)} 秒，就能進入現場模擬` : '看完最後一幕，並至少觀看 ' + WATCH_MIN_SEC + ' 秒，就能進入現場模擬'}</p>
+            <div class="h-2 bg-gray-300 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" style="width:${pct}%"></div></div>
+            <p class="text-xs text-gray-500 mt-2">故事：${w.done ? '已看完 ✓' : '尚未看完'}　觀看時間：${Math.round(w.sec)} / ${WATCH_MIN_SEC} 秒（切到別的分頁不計時）</p>
+        </div>`;
+}
+
+// 分析分頁在解鎖前顯示的提示
+function renderLocked(caseKey) {
+    const w = watchLog.get(caseKey);
+    const has3d = ['case2', 'case3', 'puyuma', 'taroko', 'mataian'].includes(caseKey);
+    document.getElementById('analysis-content').innerHTML = `
+        <div class="max-w-xl mx-auto text-center py-8">
+            <div class="text-5xl mb-4">🔒</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">先認識這起事故，再開始分析</h3>
+            <p class="text-gray-600 mb-6">請先看完這起事故的故事（或 3D 骨牌動畫），並至少觀看 ${WATCH_MIN_SEC} 秒。了解事情怎麼發生，分析才會有根據。</p>
+            <div class="bg-gray-100 rounded-xl p-4 text-left mb-6">
+                <p>故事：<strong>${w.done ? '已看完 ✓' : '尚未看完'}</strong></p>
+                <p>觀看時間：<strong>${Math.round(w.sec)} / ${WATCH_MIN_SEC} 秒</strong></p>
+            </div>
+            <div class="flex flex-wrap gap-3 justify-center">
+                <a href="#/${caseKey}/story" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full shadow">▶ 觀看事故故事</a>
+                ${has3d ? `<a href="timeline.html#${caseKey}" class="bg-gray-900 hover:bg-black text-yellow-300 font-bold py-3 px-6 rounded-full shadow">✨ 觀看 3D 骨牌動畫</a>` : ''}
+            </div>
+        </div>`;
 }
 
 function showChapter(caseKey, i) {
@@ -877,7 +927,7 @@ function showChapter(caseKey, i) {
             if (n >= ch.text.length) clearInterval(story.typeTimer);
         }, 45);
     }
-    if (i === sd.chapters.length - 1) document.getElementById('story-cta')?.classList.remove('hidden');
+    if (i === sd.chapters.length - 1) { watchLog.finish(caseKey); updateStoryCta(caseKey); }
     icons();
 
     clearTimeout(story.timer);
@@ -1208,6 +1258,7 @@ function renderSynthesisReport(caseKey) {
             <span>姓名：<strong>${esc(data.name)}</strong></span>
             <span>案例：<strong>${c.title}</strong></span>
             <span>三段五級得分：<strong>${numCorrect}/${numTotal}（${score}%）</strong></span>
+            <span>事故故事：<strong>${watchLog.text(caseKey)}</strong></span>
         </div>
 
         <div class="p-6 rounded-xl shadow mb-8 ${feedbackClass} border-l-8">
@@ -1480,6 +1531,7 @@ function downloadRecord(caseKey) {
         '事故現場・安全守護者 學習記錄',
         `班級：${d.class_name}　座號：${d.seat}　姓名：${d.name}`,
         `案例：${d.case_title}`,
+        `事故故事：${watchLog.text(caseKey)}`,
         `下載時間：${new Date().toLocaleString('zh-TW')}`,
         '',
         '【現場模擬】',

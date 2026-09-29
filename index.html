@@ -1256,7 +1256,9 @@ function buildPayload(caseKey) {
         // 以下為新版欄位（舊版後台會自動忽略）
         case_key: caseKey,
         ...simSummary(caseKey),
-        watch_text: watchLog.text(caseKey)
+        watch_text: watchLog.text(caseKey),
+        // 給 AI 回饋對照用（不寫進試算表）
+        domino_reference: c.domino.map(d => ({ name: d.name, factor: d.factor }))
     };
 }
 
@@ -1268,7 +1270,14 @@ function simSummary(caseKey) {
         sim_text: qs.map((q, i) => {
             const r = res[i];
             return `情境${i + 1}：${r ? q.options[r.choice].text + (r.correct ? ' ✓' : ' ✗') : '未作答'}`;
-        }).join('\n')
+        }).join('\n'),
+        // 給 AI 回饋用：選錯的情境、較好的做法與原因
+        sim_review: qs.map((q, i) => {
+            const r = res[i];
+            if (!r || r.correct) return '';
+            const best = q.options.find(o => o.correct);
+            return `情境${i + 1}：${q.scene}｜學生選：${q.options[r.choice].text}（${q.options[r.choice].why}）｜較好的做法：${best ? best.text : ''}`;
+        }).filter(Boolean).join('\n')
     };
 }
 

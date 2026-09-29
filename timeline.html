@@ -340,7 +340,8 @@ function actions(list) {
         const el = document.createElement(a.href ? 'a' : 'button');
         el.className = 'btn ' + (a.primary ? 'primary' : '') + (a.cls ? ' ' + a.cls : '');
         el.textContent = a.label;
-        if (a.href) el.href = a.href; else el.onclick = a.onClick;
+        if (a.disabled) el.disabled = true;
+        else if (a.href) el.href = a.href; else el.onclick = a.onClick;
         box.appendChild(el);
     });
 }
@@ -1920,23 +1921,39 @@ async function playEvent(id) {
 
 async function choosePrevention() {
     const o = cur, id = ++runId;
+    blockedPicks.clear();
     o.kit.dominoes.forEach(d => d.removed = false);
     o.reset();
     await moveCamera(...o.kit.dom, 2);
     if (id !== runId) return;
     await say('抽掉一張骨牌', '海因里希的骨牌理論說：只要抽掉其中一張，連鎖反應就會中斷。你想抽掉哪一張？');
     if (id !== runId) return;
-    actions(DOMINO_NAMES.map((n, i) => ({ label: `${i + 1}. ${n}`, cls: 'pick', onClick: () => replayWithout(i) })));
+    showPicks();
+}
+// 骨牌選項；抽不掉的（意外事故、損失）選過之後會變灰
+const blockedPicks = new Set();
+function showPicks() {
+    actions(DOMINO_NAMES.map((n, i) => ({
+        label: blockedPicks.has(i) ? `${i + 1}. ${n}（無法抽掉）` : `${i + 1}. ${n}`,
+        cls: 'pick', disabled: blockedPicks.has(i), onClick: () => replayWithout(i),
+    })));
 }
 
 async function replayWithout(k) {
     const o = cur, id = runId, alive = () => id === runId;
     actions([]);
     if (k >= 3) {
-        await say('想一想', k === 3
-            ? '意外事故本身無法「直接抽掉」──預防必須在前面的骨牌下手。'
-            : '事故已經發生，只能靠三級到五級預防（救護、治療、復健）減輕損失，無法讓事故不發生。');
-        actions([{ label: '重新選擇', primary: true, onClick: choosePrevention }]);
+        // 這張骨牌晃一晃，表示抽不掉；說明後直接留在選擇畫面
+        const d = o.kit.dominoes[k];
+        const say1 = say(`${k + 1}. ${DOMINO_NAMES[k]}：無法抽掉`, k === 3
+            ? '意外事故本身無法「直接抽掉」──預防必須在前面的骨牌下手。請改選 1～3 其中一張。'
+            : '事故已經發生，只能靠三級到五級預防（救護、治療、復健）減輕損失，無法讓事故不發生。請改選 1～3 其中一張。');
+        await tween(.8, t => { d.pivot.rotation.x = Math.sin(t * Math.PI * 6) * .08 * (1 - t); }, t => t);
+        d.pivot.rotation.x = 0;
+        await say1;
+        if (!alive()) return;
+        blockedPicks.add(k);
+        showPicks();
         return;
     }
     await o.kit.lift(k);

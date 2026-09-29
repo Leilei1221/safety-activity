@@ -10,6 +10,7 @@
     <style>
         :root { --gold: #f5d48a; --ink: #05070d; --bar: 7vh; }
         * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
         html, body { margin: 0; height: 100%; background: var(--ink); color: #fff; overflow: hidden;
             font-family: 'Noto Serif TC', serif; -webkit-font-smoothing: antialiased; }
         canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
@@ -100,7 +101,8 @@
 </div>
 
 <div id="topbar">
-    <a class="btn" id="site-link" href="index.html#/">✕ 回到網站</a>
+    <div style="display:flex;gap:8px"><a class="btn" id="site-link" href="index.html#/">✕ 回到網站</a>
+        <button class="btn" id="btn-river" hidden>◀ 回到時間之河</button></div>
     <div style="display:flex;gap:8px">
         <button class="btn" id="btn-music" title="開關背景音樂">♪ 音樂：開</button>
         <button class="btn" id="btn-quality" title="畫面太卡時可切換">畫質：高</button>
@@ -313,9 +315,12 @@ function makeWater(scene, size, tint, y = 0) {
 }
 
 const subtitle = $('subtitle');
+let runId = 0;   // 每次切換場景就加一，讓被中斷的動畫流程不再改動畫面
 async function say(kicker, line) {
+    const id = runId;
     subtitle.classList.add('hide');
     await wait(.35);
+    if (id !== runId) return;
     subtitle.querySelector('.kicker').textContent = kicker;
     subtitle.querySelector('.line').textContent = line;
     subtitle.style.display = kicker || line ? '' : 'none';
@@ -350,64 +355,103 @@ function markStorySeen(key) {
 // 不使用任何音檔，因此沒有版權問題
 // ═══════════════════════════════════════════════
 const music = (() => {
-    let ctx, master, bus, water, timer = null, nextT = 0, step = 0, mood = 'calm';
+    // 兩套聲音：river＝時間之河（流水、豎琴琶音、溫暖和弦）／scene＝事故現場（低沉持續音、稀疏鋼琴、微風）
+    let ctx, master, rev, buses = {}, timer = null, nextT = 0, step = 0, mode = 'river';
     let on = (() => { try { return localStorage.getItem('sg_music') !== 'off'; } catch (_) { return true; } })();
-    const CHORDS = {
-        calm:   [[62, 66, 69, 73], [59, 62, 66, 69], [55, 59, 62, 66], [57, 61, 64, 69]],  // Dmaj7 Bm7 Gmaj7 A
-        solemn: [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 62], [55, 59, 62, 64]],  // Am7 Fmaj7 Cadd9 G6
-    };
-    const BELLS = { calm: [74, 76, 78, 81, 83, 86], solemn: [69, 72, 74, 76, 79] };
+    const RIVER_CHORDS = [[62, 66, 69, 73], [59, 62, 66, 69], [55, 59, 62, 66], [57, 61, 64, 69]];   // Dmaj7 Bm7 Gmaj7 A
+    const SCENE_ROOTS = [45, 41, 43, 40];                                                        // A F G E（低音）
+    const SCENE_NOTES = [69, 72, 74, 76, 79, 81];                                               // A 小調五聲音階
     const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+    const rnd = a => a[Math.floor(Math.random() * a.length)];
+
+    function noiseBuffer(sec) {
+        const b = ctx.createBuffer(1, ctx.sampleRate * sec, ctx.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        return b;
+    }
     function init() {
         const AC = window.AudioContext || window.webkitAudioContext;
         ctx = new AC();
         master = ctx.createGain(); master.gain.value = 0;
         const comp = ctx.createDynamicsCompressor();
-        bus = ctx.createGain();
-        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
-        const verb = ctx.createConvolver();
+        rev = ctx.createConvolver();
         const len = ctx.sampleRate * 4, ir = ctx.createBuffer(2, len, ctx.sampleRate);
         for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
-        verb.buffer = ir;
-        const wet = ctx.createGain(); wet.gain.value = .6;
-        bus.connect(lp); lp.connect(master); lp.connect(verb); verb.connect(wet); wet.connect(master);
+        rev.buffer = ir;
+        const wet = ctx.createGain(); wet.gain.value = .55; rev.connect(wet); wet.connect(master);
         master.connect(comp); comp.connect(ctx.destination);
-        // 水聲：濾波後的白噪音
-        const nb = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), nd = nb.getChannelData(0);
-        for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-        const src = ctx.createBufferSource(); src.buffer = nb; src.loop = true;
-        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = .6;
-        water = ctx.createGain(); water.gain.value = .018;
-        src.connect(bp); bp.connect(water); water.connect(master); src.start();
+        for (const k of ['river', 'scene', 'sfx']) {
+            const g = ctx.createGain(); g.gain.value = k === mode || k === 'sfx' ? 1 : 0;
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = k === 'scene' ? 1100 : 2400;
+            g.connect(lp); lp.connect(master); lp.connect(rev);
+            buses[k] = g;
+        }
+        // 時間之河：兩層流水聲，音量緩慢起伏
+        const nb = noiseBuffer(4);
+        const w1 = ctx.createBufferSource(); w1.buffer = nb; w1.loop = true;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 650; bp.Q.value = .7;
+        const w1g = ctx.createGain(); w1g.gain.value = .028;
+        const lfo = ctx.createOscillator(); lfo.frequency.value = .13; const lfoG = ctx.createGain(); lfoG.gain.value = .012;
+        lfo.connect(lfoG); lfoG.connect(w1g.gain); lfo.start();
+        w1.connect(bp); bp.connect(w1g); w1g.connect(buses.river); w1.start();
+        const w2 = ctx.createBufferSource(); w2.buffer = nb; w2.loop = true; w2.playbackRate.value = .7;
+        const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 260;
+        const w2g = ctx.createGain(); w2g.gain.value = .05;
+        w2.connect(lp2); lp2.connect(w2g); w2g.connect(buses.river); w2.start();
+        // 事故現場：低處的微風
+        const wind = ctx.createBufferSource(); wind.buffer = nb; wind.loop = true; wind.playbackRate.value = .5;
+        const wlp = ctx.createBiquadFilter(); wlp.type = 'lowpass'; wlp.frequency.value = 500;
+        const wg = ctx.createGain(); wg.gain.value = .02;
+        const wlfo = ctx.createOscillator(); wlfo.frequency.value = .07; const wlfoG = ctx.createGain(); wlfoG.gain.value = 250;
+        wlfo.connect(wlfoG); wlfoG.connect(wlp.frequency); wlfo.start();
+        wind.connect(wlp); wlp.connect(wg); wg.connect(buses.scene); wind.start();
     }
-    function pad(notes, t, dur) {
-        notes.forEach((n, i) => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = i === 0 ? 'sine' : 'triangle';
-            o.frequency.value = hz(n - (i === 0 ? 24 : 12));
-            o.detune.value = (Math.random() - .5) * 8;
-            g.gain.setValueAtTime(0, t);
-            g.gain.linearRampToValueAtTime(i === 0 ? .06 : .035, t + 2.5);
-            g.gain.setValueAtTime(i === 0 ? .06 : .035, t + dur - .5);
-            g.gain.linearRampToValueAtTime(0, t + dur + 3);
-            o.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 3.2);
-        });
-    }
-    function bell(n, t) {
+    function tone({ f, type = 'sine', t, a = .02, peak = .03, hold = 0, rel = 2, bus = 'river', detune = 0 }) {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = hz(n);
-        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.03, t + .02);
-        g.gain.exponentialRampToValueAtTime(.0001, t + 3.5);
-        o.connect(g); g.connect(bus); o.start(t); o.stop(t + 3.6);
+        o.type = type; o.frequency.value = f; o.detune.value = detune;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(peak, t + a);
+        if (hold) g.gain.setValueAtTime(peak, t + a + hold);
+        g.gain.exponentialRampToValueAtTime(.0001, t + a + hold + rel);
+        o.connect(g); g.connect(buses[bus]); o.start(t); o.stop(t + a + hold + rel + .1);
+    }
+    // ── 時間之河：溫暖和弦＋豎琴琶音＋偶爾的水滴 ──
+    function riverBar(t) {
+        const ch = RIVER_CHORDS[step % RIVER_CHORDS.length], dur = 8;
+        ch.forEach((n, i) => tone({ f: hz(n - 12), type: 'triangle', t, a: 2.5, peak: .03, hold: dur - 3, rel: 3, detune: (Math.random() - .5) * 8 }));
+        tone({ f: hz(ch[0] - 24), t, a: 2, peak: .06, hold: dur - 2.5, rel: 3 });
+        const arp = [...ch, ch[1] + 12, ch[2] + 12];
+        for (let k = 0; k < 12; k++) {
+            if (Math.random() < .25) continue;
+            const n = arp[k % arp.length];
+            tone({ f: hz(n), t: t + k * (dur / 12) + Math.random() * .05, a: .01, peak: .022, rel: 1.8 });
+            tone({ f: hz(n) * 2, t: t + k * (dur / 12), a: .01, peak: .006, rel: .9 });
+        }
+        for (let k = 0; k < 2; k++) if (Math.random() < .7) {   // 水滴
+            const td = t + Math.random() * dur, o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.setValueAtTime(1400 + Math.random() * 600, td); o.frequency.exponentialRampToValueAtTime(500, td + .12);
+            g.gain.setValueAtTime(.018, td); g.gain.exponentialRampToValueAtTime(.0001, td + .15);
+            o.connect(g); g.connect(buses.river); o.start(td); o.stop(td + .2);
+        }
+        return dur;
+    }
+    // ── 事故現場：低沉持續音＋稀疏的鋼琴音 ──
+    function sceneBar(t) {
+        const root = SCENE_ROOTS[step % SCENE_ROOTS.length], dur = 10;
+        for (const [n, ty, pk] of [[root, 'sawtooth', .018], [root + 7, 'sawtooth', .012], [root + 12, 'sine', .03]]) {
+            tone({ f: hz(n), type: ty, t, a: 3.5, peak: pk, hold: dur - 4, rel: 4, bus: 'scene', detune: (Math.random() - .5) * 10 });
+        }
+        const count = 2 + Math.floor(Math.random() * 2);
+        for (let k = 0; k < count; k++) {
+            const tn = t + 1 + k * (dur / count) + Math.random(), n = rnd(SCENE_NOTES);
+            tone({ f: hz(n), t: tn, a: .01, peak: .03, rel: 4, bus: 'scene' });
+            tone({ f: hz(n) * 2, t: tn, a: .01, peak: .008, rel: 2, bus: 'scene' });
+            tone({ f: hz(n) * 3, t: tn, a: .01, peak: .004, rel: 1, bus: 'scene' });
+        }
+        return dur;
     }
     function schedule() {
-        while (nextT < ctx.currentTime + 1.5) {
-            const set = CHORDS[mood], dur = mood === 'calm' ? 8 : 10;
-            pad(set[step % set.length], nextT, dur);
-            const bells = BELLS[mood];
-            for (let k = 0; k < 3; k++) if (Math.random() < (mood === 'calm' ? .7 : .35)) bell(bells[Math.floor(Math.random() * bells.length)], nextT + k * (dur / 3) + Math.random() * 1.2);
-            nextT += dur; step++;
-        }
+        while (nextT < ctx.currentTime + 1.5) { nextT += (mode === 'river' ? riverBar : sceneBar)(nextT); step++; }
     }
     function start() {
         if (!on) return;
@@ -428,16 +472,47 @@ const music = (() => {
         master.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
         clearInterval(timer); timer = null;
     }
+    // ── 音效 ──
+    function sfx(name) {
+        if (!on || !ctx || !timer) return;
+        const t = ctx.currentTime + .02;
+        if (name === 'tock') {   // 骨牌倒下：木頭敲擊聲
+            tone({ f: 190, t, a: .003, peak: .12, rel: .18, bus: 'sfx' });
+            tone({ f: 620, type: 'triangle', t, a: .002, peak: .04, rel: .06, bus: 'sfx' });
+        } else if (name === 'boom') {   // 事故發生：低沉的悶響（刻意柔和，不驚嚇）
+            const s = ctx.createBufferSource(); s.buffer = noiseBuffer(2);
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 140;
+            const g = ctx.createGain(); g.gain.setValueAtTime(.35, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.8);
+            s.connect(lp); lp.connect(g); g.connect(buses.sfx); s.start(t); s.stop(t + 2);
+            tone({ f: 55, t, a: .01, peak: .12, rel: 1.6, bus: 'sfx' });
+        } else if (name === 'bell') {   // 追思：遠方的鐘聲
+            for (const [f, p] of [[440, .05], [880, .025], [1320, .012]]) tone({ f, t, a: .01, peak: p, rel: 6, bus: 'sfx' });
+        } else if (name === 'chime') {   // 連鎖中斷：明亮的和弦
+            [74, 78, 81, 86].forEach((n, i) => tone({ f: hz(n), t: t + i * .12, a: .01, peak: .03, rel: 2.5, bus: 'sfx' }));
+        }
+    }
     function label() { $('btn-music').textContent = `♪ 音樂：${on ? '開' : '關'}`; }
     label();
     return {
-        start, stop,
+        start, stop, sfx,
         toggle() { on = !on; try { localStorage.setItem('sg_music', on ? 'on' : 'off'); } catch (_) {} label(); on ? start() : stop(); },
-        setMood(m) { mood = m; if (water) water.gain.setTargetAtTime(m === 'calm' ? .018 : .006, ctx.currentTime, 1.5); },
+        setMood(m) {   // calm → 時間之河；solemn → 事故現場
+            const next = m === 'calm' ? 'river' : 'scene';
+            if (next === mode) return;
+            mode = next; step = 0;
+            if (!ctx) return;
+            const t = ctx.currentTime;
+            for (const k of ['river', 'scene']) {
+                buses[k].gain.cancelScheduledValues(t);
+                buses[k].gain.setValueAtTime(buses[k].gain.value, t);
+                buses[k].gain.linearRampToValueAtTime(k === mode ? 1 : 0, t + 2.5);
+            }
+        },
         get on() { return on; },
     };
 })();
 $('btn-music').onclick = () => music.toggle();
+$('btn-river').onclick = () => (active === river ? goStop(stopIndex) : backToRiver());
 
 // ═══════════════════════════════════════════════
 // 場景一：時間之河
@@ -587,6 +662,7 @@ function makeKit(scene, { domX, domZ, y = 0, lanterns: nL, area }) {
     function fallDomino(i) {
         const d = dominoes[i];
         const target = (i === 4 || dominoes[i + 1]?.removed) ? -Math.PI / 2 : -1.05;
+        setTimeout(() => music.sfx('tock'), 820);
         return tween(.9, k => { d.pivot.rotation.z = target * k; }, t => t * t);
     }
     // 追思燈：數量等於罹難人數
@@ -612,7 +688,7 @@ function makeKit(scene, { domX, domZ, y = 0, lanterns: nL, area }) {
     return {
         dominoes, fallDomino, puff,
         dom: [[domX + 12, y + 7.5, domZ + 26], [domX + 12, y + 3.5, domZ - 2]],
-        lanternsOn(v) { lanternOn = v; if (!v) lanterns.forEach(l => l.s.visible = false); },
+        lanternsOn(v) { if (v && !lanternOn) music.sfx('bell'); lanternOn = v; if (!v) lanterns.forEach(l => l.s.visible = false); },
         reset() {
             dominoes.forEach(d => { d.pivot.rotation.z = 0; d.pivot.position.y = y; d.slab.visible = !d.removed; });
             this.lanternsOn(false);
@@ -645,7 +721,7 @@ function makeDimmer(scene, lights) {
         restore() { scene.fog.color.copy(fog0); lights.forEach((l, j) => l.intensity = i0[j]); },
     };
 }
-function flash() { $('flash').style.opacity = .85; setTimeout(() => $('flash').style.opacity = 0, 180); }
+function flash() { $('flash').style.opacity = .85; setTimeout(() => $('flash').style.opacity = 0, 180); music.sfx('boom'); }
 
 // ═══════════════════════════════════════════════
 // 場景二：太魯閣號・因果骨牌（象徵手法，不呈現人物傷亡）
@@ -1417,6 +1493,8 @@ function renderTimeline() {
 }
 
 async function goStop(i) {
+    runId++;
+    $('btn-river').hidden = true;
     stopIndex = Math.max(0, Math.min(stops.length - 1, i));
     river.setTarget(stops[stopIndex]);
     renderTimeline();
@@ -1442,14 +1520,19 @@ async function goStop(i) {
 
 // ── 其他事件：在時間之河上以字幕播放故事時間線 ──
 async function playStory(ev) {
+    const id = ++runId;
     const chs = storyData[ev.key].chapters;
     $('timeline').style.display = 'none';
+    $('btn-river').hidden = false;
     for (let i = 0; i < chs.length; i++) {
         await say(`${ev.title} ・ ${chs[i].time} ・ ${chs[i].title}`, chs[i].text);
+        if (id !== runId) return;
         await stepButton(i < chs.length - 1 ? `下一幕 ▶（${i + 1}/${chs.length}）` : '看完了 ▶');
     }
+    $('btn-river').hidden = true;
     markStorySeen(ev.key);
     await say(ev.title, '接下來，換你親自分析這起事故的因果與預防。');
+    if (id !== runId) return;
     $('timeline').style.display = '';
     actions([
         { label: '◀ 回到時間之河', onClick: () => goStop(stopIndex) },
@@ -1491,49 +1574,60 @@ async function enterEvent(key) {
     await fadeVeil(true);
     if (!built3d[key]) built3d[key] = SCENES3D[key]();
     cur = built3d[key]; curKey = key;
+    const id = ++runId;
+    $('btn-river').hidden = false;
     cur.kit.dominoes.forEach(d => d.removed = false);
     cur.reset();
     useScene(cur);
     $('timeline').style.display = 'none';
     setCamera(...cur.shots.wide);
     await fadeVeil(false);
-    playEvent();
+    if (id === runId) playEvent(id);
 }
 
 async function stepButton(label = '下一步 ▶') {
     return new Promise(res => actions([{ label, primary: true, onClick: () => { actions([]); res(); } }]));
 }
 
-async function playEvent() {
+async function playEvent(id) {
     const o = cur, key = curKey, d = cases[key].domino;
+    const alive = () => id === runId;
     await say(o.intro, storyData[key].chapters[0].text);
+    if (!alive()) return;
     await stepButton('讓骨牌開始倒下 ▶');
     for (let i = 0; i < 5; i++) {
         await moveCamera(...o.kit.dom, i ? 1.6 : 2);
+        if (!alive()) return;
         await o.kit.fallDomino(i);
+        if (!alive()) return;
         moveCamera(...o.shots.beats[i], 2.4);
         await say(`骨牌 ${i + 1} ・ ${DOMINO_NAMES[i]}`, (o.prefix[i] || '') + d[i].factor);
         await o.beats[i]();
+        if (!alive()) return;
         if (i < 4) await stepButton();
     }
     await wait(1.5);
+    if (!alive()) return;
     await say('', o.memorial);
     markStorySeen(key);
+    if (!alive()) return;
     await stepButton('如果能抽掉一張骨牌…… ▶');
     choosePrevention();
 }
 
 async function choosePrevention() {
-    const o = cur;
+    const o = cur, id = ++runId;
     o.kit.dominoes.forEach(d => d.removed = false);
     o.reset();
     await moveCamera(...o.kit.dom, 2);
+    if (id !== runId) return;
     await say('抽掉一張骨牌', '海因里希的骨牌理論說：只要抽掉其中一張，連鎖反應就會中斷。你想抽掉哪一張？');
+    if (id !== runId) return;
     actions(DOMINO_NAMES.map((n, i) => ({ label: `${i + 1}. ${n}`, cls: 'pick', onClick: () => replayWithout(i) })));
 }
 
 async function replayWithout(k) {
-    const o = cur;
+    const o = cur, id = runId, alive = () => id === runId;
     actions([]);
     if (k >= 3) {
         await say('想一想', k === 3
@@ -1546,12 +1640,16 @@ async function replayWithout(k) {
     await say('連鎖反應開始……', '');
     for (let i = 0; i < k; i++) await o.kit.fallDomino(i);
     await wait(.6);
+    if (!alive()) return;
+    music.sfx('chime');
     await say('連鎖中斷！', o.told[k + 1]);
     // 沒被抽掉的前面幾張骨牌，事件仍會發生
-    for (let i = 0; i < k; i++) { moveCamera(...o.shots.beats[i], 2); await o.beats[i](); }
+    for (let i = 0; i < k; i++) { moveCamera(...o.shots.beats[i], 2); await o.beats[i](); if (!alive()) return; }
     const end = await o.safe(k);
+    if (!alive()) return;
     await say(end.title, end.text);
     if (end.after) await end.after();
+    if (!alive()) return;
     actions([
         { label: '再抽一次', onClick: choosePrevention },
         { label: '進入現場模擬與分析 →', primary: true, onClick: () => goAnalysis(curKey) },
@@ -1560,7 +1658,11 @@ async function replayWithout(k) {
 }
 
 async function backToRiver() {
+    runId++;
+    tweens.clear();   // 停止事故現場裡還在進行的動畫
     actions([]);
+    $('btn-river').hidden = true;
+    camShake = 0;
     music.setMood('calm');
     await fadeVeil(true);
     useScene(river);
@@ -1617,6 +1719,18 @@ function loop() {
         if (e.key === 'ArrowRight' || e.key === 'ArrowUp') goStop(stopIndex + 1);
         if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') goStop(stopIndex - 1);
     });
+    // 從平面版「回到時間之河」：timeline.html#at.taroko（網址被清掉時改讀本機暫存）
+    let backAt = (location.hash.match(/^#at\.([a-z0-9]+)$/) || [])[1];
+    try { backAt = backAt || localStorage.getItem('sg_river_at'); localStorage.removeItem('sg_river_at'); } catch (_) {}
+    if (backAt !== undefined && backAt !== null) {
+        addEventListener('pointerdown', () => music.start(), { once: true });
+        $('title-card').classList.add('gone');
+        const idx = EVENTS.findIndex(e => e.key === backAt);
+        stopIndex = idx >= 0 ? idx + 1 : 0;
+        river.jump(stops[stopIndex]);
+        renderTimeline();
+        goStop(stopIndex);
+    }
     // 從平面版「以 3D 觀看」直接進入：timeline.html#taroko
     const deep = location.hash.slice(1);
     if (SCENES3D[deep]) {

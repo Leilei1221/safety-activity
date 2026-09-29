@@ -324,6 +324,9 @@
             事故現場・安全守護者
         </h1>
         <div class="flex items-center gap-2">
+            <a id="river-link" href="timeline.html" class="bg-slate-800 hover:bg-slate-700 text-yellow-200 font-semibold py-2 px-4 rounded-full transition shadow-md flex items-center">
+                <i data-lucide="waves" class="w-5 h-5 mr-1"></i>時間之河
+            </a>
             <button data-action="replay-intro" title="重播入場動畫" class="text-gray-500 hover:text-red-500 p-2 rounded-full transition">
                 <i data-lucide="clapperboard" class="w-5 h-5"></i>
             </button>
@@ -520,8 +523,16 @@ function parseRoute() {
 
 function infoFilled() { return !!(state.studentInfo.class_name && state.studentInfo.seat && state.studentInfo.name); }
 
+// 「時間之河」按鈕：回到 3D 頁面上目前這起事件的那一站
+const riverLink = document.getElementById('river-link');
+const riverBase = riverLink.getAttribute('href').split('#')[0];
+function updateRiverLink(page) {
+    riverLink.href = page && page !== 'home' ? `${riverBase}#at.${page}` : riverBase;
+    riverLink.onclick = () => { try { if (page && page !== 'home') localStorage.setItem('sg_river_at', page); } catch (_) {} };
+}
 function router() {
     const route = parseRoute();
+    updateRiverLink(route.page);
     if (route.page !== 'home' && !infoFilled()) {
         // 記住原本要去的頁面（例如從 3D 時間之河過來），填完資料後自動帶過去
         try { sessionStorage.setItem('sg_pending', location.hash); } catch (_) {}

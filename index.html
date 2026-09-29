@@ -697,6 +697,8 @@ function resetStudentInfo() {
     if (!confirm('確定要換人作答嗎？\n這台裝置上的姓名與所有作答紀錄都會被清除。')) return;
     state = emptyState();
     watchLog.clear();
+    try { localStorage.removeItem('sg_teacher'); } catch (_) {}   // 換人時一併關閉老師模式
+    document.getElementById('teacher-badge')?.remove();
     saveState(false);
     renderHome();
 }

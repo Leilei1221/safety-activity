@@ -8,7 +8,7 @@
  *
  * 【指令碼屬性】（專案設定 → 指令碼屬性，不要把金鑰寫在程式碼裡）
  *   GROQ_API_KEY   ：Groq 金鑰（gsk_ 開頭）。沒填就使用固定回饋，不會出錯
- *   GROQ_MODEL     ：選填，預設 llama-3.3-70b-versatile
+ *   GROQ_MODEL     ：選填，預設 openai/gpt-oss-120b（可在 listGroqModels 查目前可用的模型）
  *   ACTIVITY_NAME  ：選填，活動名稱，預設「安全守護者」
  */
 
@@ -151,17 +151,40 @@ ${prevSummary}
 
 請直接輸出回饋文字，不要有任何前言或標題，使用繁體中文。`;
 
-  const model = PropertiesService.getScriptProperties().getProperty('GROQ_MODEL') || 'llama-3.3-70b-versatile';
+  const model = (PropertiesService.getScriptProperties().getProperty('GROQ_MODEL') || 'openai/gpt-oss-120b').trim();
+  const req = { model: model, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.7 };
+  // gpt-oss 會先「思考」再回答，思考也算字數；設成 low 讓字數留給回饋本身
+  if (/gpt-oss/.test(model)) req.reasoning_effort = 'low';
   const res = UrlFetchApp.fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + key },
-    payload: JSON.stringify({ model: model, messages: [{ role: 'user', content: prompt }], max_tokens: 512, temperature: 0.7 }),
+    payload: JSON.stringify(req),
     muteHttpExceptions: true,
   });
   if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
+  const choice = JSON.parse(res.getContentText()).choices[0];
+  const text = String(choice.message.content || '').trim();
+  if (!text) throw new Error('AI 沒有產生文字（finish_reason：' + choice.finish_reason + '）');
+  return text;
+}
+
+/** 測試用：在編輯器選這個函式按「執行」，下方執行記錄會顯示 AI 回饋或錯誤原因 */
+function testGroq() {
+  const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY');
+  console.log('有沒有讀到金鑰：' + (key ? '有' : '沒有'));
+  console.log(groqFeedback_({ name: '測試', class_name: '101', seat: '1', case_title: '測試事故', score: 5, total: 5 }, key));
+}
+
+/** 查詢這把金鑰目前可用的 Groq 模型（模型被停用時，用來挑新的 GROQ_MODEL） */
+function listGroqModels() {
+  const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY');
+  const res = UrlFetchApp.fetch('https://api.groq.com/openai/v1/models', {
+    headers: { Authorization: 'Bearer ' + key },
+    muteHttpExceptions: true,
+  });
   const body = JSON.parse(res.getContentText());
-  return String(body.choices[0].message.content || '').trim();
+  (body.data || []).map(m => m.id).sort().forEach(id => console.log(id));
 }
 
 function fixedFeedback_(d) {

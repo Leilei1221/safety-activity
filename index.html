@@ -193,6 +193,8 @@
         .stage-3 { background-color: #fee2e2; border-left-color: #ef4444; }
 
         /* 自動儲存提示 */
+        .next-pulse { animation: nextPulse 1.8s ease-in-out infinite; }
+        @keyframes nextPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); } 50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); } }
         .save-pill { position: fixed; right: 16px; bottom: 16px; z-index: 40; padding: .45rem .9rem; border-radius: 9999px;
             background: rgba(17,24,39,.9); color: #bbf7d0; font-size: .8rem; opacity: 0; transform: translateY(8px);
             transition: opacity .3s, transform .3s; pointer-events: none; }
@@ -1082,8 +1084,36 @@ function renderDomino(caseKey) {
         `;
     });
 
-    html += `</div>`;
+    html += `</div><div id="next-step" class="mt-8"></div>`;
     document.getElementById('analysis-content').innerHTML = html;
+    updateNextStep(caseKey, 'domino');
+}
+
+// 每一步最下方的「完成，前往下一關」引導
+const NEXT_STEP = {
+    domino:     { next: 'prevention', label: '第四步：三段五級', unit: '張骨牌', todo: '看完官方分析' },
+    prevention: { next: 'report',     label: '第五步：分析報告', unit: '題',     todo: '完成配對' },
+};
+function updateNextStep(caseKey, kind) {
+    const el = document.getElementById('next-step');
+    if (!el) return;
+    const cfg = NEXT_STEP[kind];
+    const total = kind === 'domino' ? 5 : cases[caseKey].prevention.length;
+    const done = kind === 'domino'
+        ? Object.values(getDomino(caseKey).revealed || {}).filter(Boolean).length
+        : Object.keys(state.quizResults[caseKey] || {}).length;
+    const finished = done >= total;
+    el.innerHTML = `
+        <div class="rounded-xl p-5 flex flex-wrap items-center justify-between gap-4 ${finished ? 'bg-green-50 border-2 border-green-400' : 'bg-gray-50 border border-gray-200'}">
+            <div>
+                <p class="font-bold ${finished ? 'text-green-700' : 'text-gray-700'}">${finished ? `✓ 這一關完成了！（${done}/${total}）` : `進度：${done}/${total} ${cfg.unit}已${cfg.todo}`}</p>
+                <p class="text-sm text-gray-500 mt-1">你的作答會自動儲存，不需要另外按儲存。${finished ? '' : `還有 ${total - done} ${cfg.unit}要${cfg.todo}。`}</p>
+            </div>
+            <a href="#/${caseKey}/${cfg.next}" class="inline-flex items-center font-bold py-3 px-6 rounded-full shadow transition ${finished
+                ? 'bg-red-500 hover:bg-red-600 text-white next-pulse'
+                : 'bg-white hover:bg-gray-100 text-gray-500 border border-gray-300'}">${finished ? '我完成了，' : '先跳過，'}前往${cfg.label} →</a>
+        </div>`;
+    if (finished) setTimeout(() => el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }), 700);
 }
 
 function revealDominoAnswer(caseKey, index) {
@@ -1105,6 +1135,7 @@ function revealDominoAnswer(caseKey, index) {
     if ([0, 1, 2, 3, 4].every(i => ds.revealed[i])) {
         setTimeout(() => document.getElementById('chain-msg')?.classList.remove('hidden'), 600);
     }
+    updateNextStep(caseKey, 'domino');
 }
 
 // ═══════════════════════════════════════════════
@@ -1183,8 +1214,9 @@ function renderPrevention(caseKey) {
     c.prevention.forEach((p, index) => {
         html += `<div id="prevention-item-${index}" class="${p.tag} p-5 rounded-xl border-l-8 shadow-lg transition duration-300">${preventionItemHtml(caseKey, index)}</div>`;
     });
-    html += `</div>`;
+    html += `</div><div id="next-step" class="mt-8"></div>`;
     document.getElementById('analysis-content').innerHTML = html;
+    updateNextStep(caseKey, 'prevention');
 }
 
 function checkPreventionAnswer(caseKey, index, optIndex) {
@@ -1200,6 +1232,7 @@ function checkPreventionAnswer(caseKey, index, optIndex) {
         item.classList.remove('knock'); void item.offsetWidth; item.classList.add('knock');
         icons();
     }
+    updateNextStep(caseKey, 'prevention');
 }
 
 // ═══════════════════════════════════════════════

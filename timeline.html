@@ -530,7 +530,9 @@ const SITE = ($('site-link')?.getAttribute('href') || 'index.html').split('#')[0
 const EVENTS = Object.keys(cases).map(key => ({ key, ...cases[key], has3d: HAS3D.includes(key) }));
 const GATE_GAP = 230, FIRST_GATE = -170;
 const gateZ = i => FIRST_GATE - i * GATE_GAP;
-const stops = [0, ...EVENTS.map((_, i) => gateZ(i) + 34)];
+const END_Z = gateZ(EVENTS.length - 1) - GATE_GAP;   // 終點：重新思考之門
+const stops = [0, ...EVENTS.map((_, i) => gateZ(i) + 34), END_Z + 34];
+const isEndStop = i => i === stops.length - 1;
 
 function buildRiver() {
     const scene = new THREE.Scene();
@@ -605,6 +607,20 @@ function buildRiver() {
         scene.add(g);
         return { g, sign, halo };
     });
+    // 終點：重新思考之門
+    const endGate = new THREE.Group();
+    for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(2.4, 18, 2.4), stone); p.position.set(sd * 11.3, 12, 0); endGate.add(p); }
+    const endArch = new THREE.Mesh(new THREE.TorusGeometry(11.3, .9, 8, 40, Math.PI), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfe8ff, emissiveIntensity: 1.2 }));
+    endArch.position.y = 9; endGate.add(endArch);
+    const endSign = new THREE.Mesh(new THREE.PlaneGeometry(26, 13), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: textTexture([
+        { text: 'REFLECT', font: '500 120px "Cormorant Garamond", serif', y: 170, color: '#cfe8ff' },
+        { text: '終點・重新思考', font: '700 80px "Noto Serif TC", serif', y: 330, blur: 12 },
+        { text: '— 選一起事故，深入分析 —', font: 'italic 500 44px "Cormorant Garamond", "Noto Serif TC", serif', y: 440, color: '#e5e7eb', blur: 6 },
+    ], { bg: 'rgba(8,12,20,.78)' }) }));
+    endSign.position.y = 27; endGate.add(endSign);
+    const endHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('200,230,255'), transparent: true, opacity: .6, depthWrite: false, blending: THREE.AdditiveBlending }));
+    endHalo.scale.set(44, 44, 1); endHalo.position.y = 30; endGate.add(endHalo);
+    endGate.position.z = END_Z; scene.add(endGate);
 
     // 小船
     const boat = new THREE.Group();
@@ -627,7 +643,7 @@ function buildRiver() {
 
     let boatZ = 0, targetZ = 0, time = 0;
     return {
-        scene, gates,
+        scene, gates, endGate,
         get boatZ() { return boatZ; },
         setTarget(z) { targetZ = z; },
         jump(z) { boatZ = targetZ = z; },
@@ -1790,7 +1806,7 @@ function renderTimeline() {
     tl.innerHTML = '';
     stops.forEach((_, i) => {
         const b = document.createElement('button');
-        b.innerHTML = `<span class="d"></span>${i === 0 ? '起點' : EVENTS[i - 1].year}`;
+        b.innerHTML = `<span class="d"></span>${i === 0 ? '起點' : isEndStop(i) ? '終點' : EVENTS[i - 1].year}`;
         b.className = i === stopIndex ? 'on' : '';
         b.onclick = () => goStop(i);
         tl.appendChild(b);
@@ -1804,6 +1820,7 @@ async function goStop(i) {
     river.setTarget(stops[stopIndex]);
     renderTimeline();
     actions([]);
+    if (isEndStop(stopIndex)) return showReflect();
     if (stopIndex === 0) {
         await say('THE RIVER OF TIME', '沿著時間之河前進，每一座門，都是一場改變臺灣的事故。');
     } else {
@@ -1812,14 +1829,37 @@ async function goStop(i) {
     }
     const nav = [];
     if (stopIndex > 0) nav.push({ label: '◀ 上一站', onClick: () => goStop(stopIndex - 1) });             // 起點不需要上一站
-    if (stopIndex < stops.length - 1) nav.push({ label: stopIndex === 0 ? '啟航 ▶' : '下一站 ▶', onClick: () => goStop(stopIndex + 1) });   // 最後一站不需要下一站
+    nav.push({ label: stopIndex === 0 ? '啟航 ▶' : '下一站 ▶', onClick: () => goStop(stopIndex + 1) });
     if (stopIndex > 0) {
         const ev = EVENTS[stopIndex - 1];
         nav.splice(1, 0, ev.has3d
             ? { label: '進入事故現場（3D 因果動畫）', primary: true, onClick: () => enterEvent(ev.key) }
-            : { label: '觀看事故故事 ▶', primary: true, onClick: () => playStory(ev) });
+            : { label: '觀看事故故事 ▶', primary: true, onClick: () => playStory(ev) },
+            { label: '直接進入分析 →', onClick: () => goAnalysis(ev.key) });
     }
     actions(nav);
+}
+
+// ── 終點：重新思考，選一起事故進入分析 ──
+function analysisProgress(key) {
+    try {
+        const st = JSON.parse(localStorage.getItem('safety-guardian-v2') || '{}');
+        if (st.submissions?.[key]?.status === 'done') return '已完成';
+        const n = Object.keys(st.quizResults?.[key] || {}).length + Object.keys(st.simResults?.[key] || {}).length;
+        return n ? '進行中' : '';
+    } catch (_) { return ''; }
+}
+async function showReflect() {
+    await say('THE END OF THE RIVER ・ 終點', `${EVENTS.length} 起事故，${EVENTS.length} 條沒有被截斷的因果之河。回頭想一想：你想深入分析哪一起？選一起事故，進入現場模擬與分析。`);
+    if (!isEndStop(stopIndex)) return;
+    actions([
+        ...EVENTS.map(ev => {
+            const prog = analysisProgress(ev.key);
+            return { label: `${ev.year}｜${ev.title}${prog === '已完成' ? ' ✓' : prog ? '（進行中）' : ''}`, primary: prog !== '已完成', onClick: () => goAnalysis(ev.key) };
+        }),
+        { label: '◀ 上一站', onClick: () => goStop(stopIndex - 1) },
+        { label: '回到起點', onClick: () => goStop(0) },
+    ]);
 }
 
 // ── 其他事件：在時間之河上以字幕播放故事時間線 ──
@@ -1853,6 +1893,11 @@ function gateAt(e) {
     return river.gates.findIndex(g => ray.intersectObject(g.g, true).length > 0);
 }
 canvas.addEventListener('click', e => {
+    if (active === river && $('title-card').classList.contains('gone') && $('timeline').style.display !== 'none') {
+        pointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+        ray.setFromCamera(pointer, camera);
+        if (ray.intersectObject(river.endGate, true).length) { goStop(stops.length - 1); return; }
+    }
     const i = gateAt(e);
     if (i < 0 || $('timeline').style.display === 'none') return;
     if (stopIndex === i + 1) { const ev = EVENTS[i]; ev.has3d ? enterEvent(ev.key) : playStory(ev); }
